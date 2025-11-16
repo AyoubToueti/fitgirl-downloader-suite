@@ -1,0 +1,22 @@
+{
+  "name": "fitgirl-game-downloader",
+  "version": "1.0.0",
+  "description": "Automated downloader for Fitgirl repack games from fuckingfast.co",
+  "main": "fitgirl-downloader.js",
+  "scripts": {
+    "start": "node fitgirl-downloader.js",
+    "test": "node -e \"console.log('Testing...')\""
+  },
+  "dependencies": {
+    "fs-extra": "^11.3.2",
+    "puppeteer": "^24.30.0"
+  },
+  "keywords": [
+    "download",
+    "games",
+    "fitgirl",
+    "automation"
+  ],
+  "author": "Auto Downloader",
+  "license": "MIT"
+}
