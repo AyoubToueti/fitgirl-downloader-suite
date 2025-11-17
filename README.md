@@ -6,7 +6,7 @@ Choose the approach that fits your needs:
 
 | Project | Tech Stack | Best For |
 |--------|-----------|--------|
-| **`browser-automation`** | Node.js + Puppeteer | Users who want **realistic browser interaction**, **FDM CLI integration**, or **button-fallback** control |
+| **`browser-automation`** | Node.js + Puppeteer | Users who want **realistic browser interaction** |
 | **`python-cloudscraper`** | Python + cloudscraper | Users who want **speed, simplicity, and minimal resource usage** — no browser needed |
 
 Both tools:

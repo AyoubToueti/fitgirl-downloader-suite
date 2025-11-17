@@ -51,8 +51,8 @@ This tool automates downloading FitGirl `.rar` parts by:
 ## Installation
 
 ```bash
-git clone <your-repo>
-cd browser-automation
+git clone https://github.com/AyoubToueti/fitgirl-game-downloader.git
+cd fitgirl-game-downloader/browser-automation
 npm install
 ```
 
