@@ -22,15 +22,14 @@ Both tools:
 ### 1. [`browser-automation`](./browser-automation/)
 A **browser automation tool** using **Puppeteer** that:
 - Launches your real or temp browser profile
-- **Clicks the "DOWNLOAD" button** exactly like a human
-- Optionally **launches FDM via CLI** with the extracted `/dl/...` URL
-- Falls back to browser download if FDM fails
+- **Clicks the "DOWNLOAD" button** exactly like a human would
+- Lets the browser handle downloads natively
 - Cleans up temp profiles automatically
 
 ✅ Use this if you:
 - Prefer **visual confirmation** (browser window opens)
 - Want **maximum compatibility** with site logic
-- Need **FDM CLI control** or **extension-less FDM usage**
+- Need to use your **real browser profile** (cookies, settings)
 
 ➡️ [View browser-automation README](./browser-automation/README.md)
 
