@@ -5,6 +5,7 @@
   "main": "main.js",
   "scripts": {
     "start": "node main.js",
+    "dl": "node main.js",
     "dev": "node main.js",
     "test": "node -e \"console.log('Testing...')\""
   },
