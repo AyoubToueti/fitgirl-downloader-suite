@@ -1,0 +1,53 @@
+{
+  "manifest_version": 3,
+  "name": "FitGirl Downloader",
+  "version": "0.0.2",
+  "description": "Automatically detect and download FitGirl fuckingfast.co links with pause/resume, file selection, and retry capabilities",
+  "permissions": [
+    "storage",
+    "downloads",
+    "notifications",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://fitgirl-repacks.site/*",
+    "https://*.fitgirl-repacks.site/*",
+    "https://fuckingfast.co/*",
+    "https://*.fuckingfast.co/*"
+  ],
+  "background": {
+    "service_worker": "background/background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://fitgirl-repacks.site/*",
+        "https://*.fitgirl-repacks.site/*",
+        "https://fuckingfast.co/*",
+        "https://*.fuckingfast.co/*"
+      ],
+      "js": [
+        "shared/config.js",
+        "shared/utils.js",
+        "content/content-script.js"
+      ],
+      "css": [
+        "content/styles.css"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

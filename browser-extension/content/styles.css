@@ -1,0 +1,539 @@
+/* content/styles.css */
+/* Modern UI styles for FitGirl Downloader Extension */
+
+:root {
+  --fg-primary: #667eea;
+  --fg-primary-dark: #764ba2;
+  --fg-success: #10b981;
+  --fg-danger: #ef4444;
+  --fg-warning: #f59e0b;
+  --fg-info: #3b82f6;
+  --fg-muted: #6b7280;
+  --fg-light: #f3f4f6;
+  --fg-dark: #1f2937;
+  --fg-white: #ffffff;
+  --fg-shadow: rgba(0, 0, 0, 0.1);
+  --fg-shadow-lg: rgba(0, 0, 0, 0.2);
+  --fg-transition: all 0.3s ease;
+}
+
+/* Main UI Container */
+.fg-download-ui {
+  background: linear-gradient(135deg, var(--fg-primary) 0%, var(--fg-primary-dark) 100%);
+  border-radius: 12px;
+  padding: 24px;
+  margin: 24px 0;
+  box-shadow: 0 10px 30px var(--fg-shadow-lg);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+  color: var(--fg-dark);
+}
+
+/* Header */
+.fg-header {
+  background: var(--fg-white);
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 8px var(--fg-shadow);
+}
+
+.fg-header h3 {
+  margin: 0 0 16px 0;
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--fg-primary);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Progress Bar */
+.fg-progress-container {
+  margin-top: 12px;
+}
+
+.fg-progress-bar {
+  background: var(--fg-light);
+  border-radius: 999px;
+  height: 24px;
+  overflow: hidden;
+  position: relative;
+  box-shadow: inset 0 2px 4px var(--fg-shadow);
+}
+
+.fg-progress-fill {
+  background: linear-gradient(90deg, var(--fg-primary) 0%, var(--fg-success) 100%);
+  height: 100%;
+  width: 0%;
+  transition: width 0.4s ease;
+  border-radius: 999px;
+  box-shadow: 0 0 10px rgba(102, 126, 234, 0.5);
+}
+
+.fg-progress-text {
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg-muted);
+  margin-top: 8px;
+}
+
+/* Controls Section */
+.fg-controls {
+  background: var(--fg-white);
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 8px var(--fg-shadow);
+}
+
+.fg-control-group {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.fg-selection-controls {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.fg-counter {
+  padding: 12px;
+  background: var(--fg-light);
+  border-radius: 6px;
+  text-align: center;
+}
+
+.fg-counter-text {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg-dark);
+}
+
+/* Buttons */
+.fg-btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--fg-transition);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 2px 6px var(--fg-shadow);
+  font-family: inherit;
+}
+
+.fg-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px var(--fg-shadow-lg);
+}
+
+.fg-btn:active {
+  transform: translateY(0);
+}
+
+.fg-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.fg-btn-primary {
+  background: linear-gradient(135deg, var(--fg-primary) 0%, var(--fg-primary-dark) 100%);
+  color: var(--fg-white);
+}
+
+.fg-btn-primary:hover {
+  background: linear-gradient(135deg, var(--fg-primary-dark) 0%, var(--fg-primary) 100%);
+}
+
+.fg-btn-success {
+  background: var(--fg-success);
+  color: var(--fg-white);
+}
+
+.fg-btn-success:hover {
+  background: #059669;
+}
+
+.fg-btn-danger {
+  background: var(--fg-danger);
+  color: var(--fg-white);
+}
+
+.fg-btn-danger:hover {
+  background: #dc2626;
+}
+
+.fg-btn-secondary {
+  background: var(--fg-muted);
+  color: var(--fg-white);
+}
+
+.fg-btn-secondary:hover {
+  background: #4b5563;
+}
+
+.fg-btn-sm {
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+.fg-btn-xs {
+  padding: 4px 8px;
+  font-size: 11px;
+  box-shadow: 0 1px 3px var(--fg-shadow);
+}
+
+/* File List */
+.fg-file-list {
+  background: var(--fg-white);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 20px;
+  max-height: 600px;
+  overflow-y: auto;
+  box-shadow: 0 2px 8px var(--fg-shadow);
+}
+
+.fg-file-list::-webkit-scrollbar {
+  width: 10px;
+}
+
+.fg-file-list::-webkit-scrollbar-track {
+  background: var(--fg-light);
+  border-radius: 5px;
+}
+
+.fg-file-list::-webkit-scrollbar-thumb {
+  background: var(--fg-primary);
+  border-radius: 5px;
+}
+
+.fg-file-list::-webkit-scrollbar-thumb:hover {
+  background: var(--fg-primary-dark);
+}
+
+/* File Item (Card) */
+.fg-file-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  gap: 16px;
+  align-items: center;
+  padding: 16px;
+  margin-bottom: 12px;
+  background: var(--fg-white);
+  border: 2px solid var(--fg-light);
+  border-radius: 8px;
+  transition: var(--fg-transition);
+}
+
+.fg-file-item:hover {
+  border-color: var(--fg-primary);
+  box-shadow: 0 4px 12px var(--fg-shadow);
+  transform: translateY(-2px);
+}
+
+.fg-file-item:last-child {
+  margin-bottom: 0;
+}
+
+/* Make file items look clickable */
+.fg-file-item:not(.fg-file-skipped) {
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.fg-file-item:not(.fg-file-skipped):active {
+  transform: scale(0.99);
+}
+
+/* Skipped File Styling */
+.fg-file-skipped {
+  opacity: 0.6;
+  background: var(--fg-light);
+  border-color: var(--fg-muted);
+}
+
+.fg-file-skipped:hover {
+  border-color: var(--fg-muted);
+  transform: none;
+}
+
+.fg-file-skipped .fg-file-name {
+  text-decoration: line-through;
+  color: var(--fg-muted);
+}
+
+/* Checkbox */
+.fg-file-checkbox {
+  display: flex;
+  align-items: center;
+}
+
+.fg-checkbox {
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+  accent-color: var(--fg-primary);
+}
+
+.fg-checkbox:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* File Info */
+.fg-file-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.fg-file-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--fg-dark);
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fg-file-url {
+  font-size: 12px;
+  color: var(--fg-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* File Status */
+.fg-file-status {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+/* Status Badges */
+.fg-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.fg-badge-processing {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.fg-badge-success {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.fg-badge-failed {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.fg-badge-retrying {
+  background: #fed7aa;
+  color: #9a3412;
+}
+
+.fg-badge-skipped {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+/* File Actions */
+.fg-file-actions {
+  display: flex;
+  gap: 6px;
+}
+
+/* Status Panel */
+.fg-status-panel {
+  background: var(--fg-white);
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 2px 8px var(--fg-shadow);
+}
+
+.fg-status-text {
+  font-size: 13px;
+  color: var(--fg-muted);
+  font-weight: 500;
+  text-align: center;
+}
+
+/* Resume Banner */
+.fg-resume-banner {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10000;
+  background: var(--fg-white);
+  border-radius: 12px;
+  box-shadow: 0 10px 40px var(--fg-shadow-lg);
+  padding: 20px;
+  max-width: 600px;
+  width: 90%;
+  animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.fg-resume-content {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.fg-resume-icon {
+  font-size: 36px;
+}
+
+.fg-resume-info {
+  flex: 1;
+}
+
+.fg-resume-info strong {
+  display: block;
+  font-size: 16px;
+  color: var(--fg-dark);
+  margin-bottom: 4px;
+}
+
+.fg-resume-info p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--fg-muted);
+}
+
+.fg-resume-actions {
+  display: flex;
+  gap: 8px;
+  flex-direction: column;
+}
+
+/* Floating Button (for fuckingfast.co pages) */
+.fg-float-btn {
+  position: fixed;
+  top: 50%;
+  right: 20px;
+  transform: translateY(-50%);
+  z-index: 9999;
+  background: linear-gradient(135deg, var(--fg-primary) 0%, var(--fg-primary-dark) 100%);
+  color: var(--fg-white);
+  border: none;
+  padding: 16px 24px;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 6px 20px var(--fg-shadow-lg);
+  transition: var(--fg-transition);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+}
+
+.fg-float-btn:hover {
+  transform: translateY(-50%) scale(1.05);
+  box-shadow: 0 8px 30px var(--fg-shadow-lg);
+}
+
+.fg-float-btn:active {
+  transform: translateY(-50%) scale(0.98);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .fg-download-ui {
+    padding: 16px;
+  }
+
+  .fg-file-item {
+    grid-template-columns: auto 1fr;
+    gap: 12px;
+  }
+
+  .fg-file-status,
+  .fg-file-actions {
+    grid-column: 2;
+  }
+
+  .fg-resume-content {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .fg-resume-actions {
+    flex-direction: row;
+  }
+
+  .fg-control-group {
+    flex-direction: column;
+  }
+
+  .fg-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* Animation for status changes */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.fg-file-item[data-status="processing"] {
+  animation: pulse 2s infinite;
+}
+
+/* Loading spinner (optional enhancement) */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.fg-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--fg-light);
+  border-top-color: var(--fg-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
