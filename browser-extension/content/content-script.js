@@ -1,4 +1,17 @@
-console.log('FitGirl Downloader: Content script loaded on', window.location.href);
+// Guard against multiple script injections
+if (window.fitGirlDownloaderInitialized) {
+  console.log('FitGirl Downloader: Already initialized, skipping...');
+} else {
+  window.fitGirlDownloaderInitialized = true;
+  console.log('FitGirl Downloader: Content script loaded on', window.location.href);
+
+// Wrap in IIFE to prevent re-declaration issues
+(function() {
+'use strict';
+
+// Optimized FitGirlDownloader class with performance improvements
+
+const browserAPI = typeof browser !== 'undefined' ? browser : chrome;
 
 class FitGirlDownloader {
   constructor() {
@@ -9,15 +22,28 @@ class FitGirlDownloader {
     this.initialized = false;
     this.fileItems = [];
     this.currentIndex = 0;
-
+    
+    // Cache DOM elements
+    this.cachedElements = {};
+    
+    // Debounced functions
+    this.debouncedSaveSelections = this.debounce(() => this.saveSelections(), 500);
+    this.debouncedUpdateCounter = this.debounce(() => this.updateCounter(), 100);
+    
+    // Batch storage operations
+    this.pendingStorageWrites = {};
+    this.storageWriteTimeout = null;
+    
+    // MutationObserver reference for cleanup
+    this.observer = null;
+    
     console.log('FitGirl Downloader: Initializing on', this.currentPage);
     this.init();
   }
 
   async init() {
-
     if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', () => this.start());
+      document.addEventListener('DOMContentLoaded', () => this.start(), { once: true });
     } else {
       this.start();
     }
@@ -25,14 +51,8 @@ class FitGirlDownloader {
 
   async start() {
     console.log('FitGirl Downloader: Starting initialization');
-
-
     await this.checkPauseState();
-
-
     this.tryInitialize();
-
-
     this.setupMutationObserver();
   }
 
@@ -54,31 +74,47 @@ class FitGirlDownloader {
   }
 
   setupMutationObserver() {
-    const observer = new MutationObserver((mutations) => {
+    // Disconnect existing observer to prevent duplicates
+    if (this.observer) {
+      this.observer.disconnect();
+    }
+
+    this.observer = new MutationObserver((mutations) => {
       if (!this.initialized) {
         this.tryInitialize();
+        return;
       }
 
-      mutations.forEach((mutation) => {
-        mutation.addedNodes.forEach((node) => {
-          if (node.nodeType === 1) {
-            if (node.querySelector && (
-              node.querySelector('a[href*="fuckingfast.co"]') ||
-              node.textContent.includes('Download links') ||
-              node.id === 'plaintext'
-            )) {
-              console.log('FitGirl Downloader: New download content detected');
-              this.tryInitialize();
-            }
-          }
-        });
-      });
+      // Use requestIdleCallback for non-critical work
+      if ('requestIdleCallback' in window) {
+        requestIdleCallback(() => this.handleMutations(mutations));
+      } else {
+        setTimeout(() => this.handleMutations(mutations), 0);
+      }
     });
 
-    observer.observe(document.body, {
+    this.observer.observe(document.body, {
       childList: true,
       subtree: true
     });
+  }
+
+  handleMutations(mutations) {
+    for (const mutation of mutations) {
+      for (const node of mutation.addedNodes) {
+        if (node.nodeType === 1) {
+          if (node.querySelector && (
+            node.querySelector('a[href*="fuckingfast.co"]') ||
+            node.textContent.includes('Download links') ||
+            node.id === 'plaintext'
+          )) {
+            console.log('FitGirl Downloader: New download content detected');
+            this.tryInitialize();
+            return; // Exit early
+          }
+        }
+      }
+    }
   }
 
   isFitGirlPage() {
@@ -91,66 +127,42 @@ class FitGirlDownloader {
 
   processFitGirlPage() {
     const downloadSection = this.findDownloadSection();
-
     if (downloadSection) {
-      console.log('FitGirl Downloader: Found download section');
       this.createDownloadUI(downloadSection);
       return true;
     }
-
     return false;
   }
 
   findDownloadSection() {
+    // Try multiple selectors efficiently
+    const selectors = [
+      'textarea[readonly]',
+      'textarea#plaintext',
+      'pre:has(a[href*="fuckingfast.co"])',
+      'article:has(a[href*="fuckingfast.co"])'
+    ];
 
-    let section = document.getElementById('plaintext');
-    if (section) return section;
-
-
-    const headings = document.querySelectorAll('h1, h2, h3, h4, h5, h6');
-    for (const heading of headings) {
-      if (heading.textContent.toLowerCase().includes('download link')) {
-        let container = heading.parentElement;
-        for (let i = 0; i < 3; i++) {
-          const lists = container.querySelectorAll('ul, ol');
-          if (lists.length > 0) {
-            return container;
-          }
-          container = container.parentElement;
-          if (!container) break;
+    for (const selector of selectors) {
+      try {
+        const element = document.querySelector(selector);
+        if (element?.parentElement) {
+          return element.parentElement;
         }
-        return heading.parentElement;
+      } catch (e) {
+        // Skip invalid selectors
+        continue;
       }
     }
-
-
-    const links = document.querySelectorAll('a[href*="fuckingfast.co"]');
-    if (links.length > 0) {
-      return links[0].closest('div, section, article') || document.body;
-    }
-
     return null;
   }
 
   async createDownloadUI(container) {
-
-    if (document.querySelector('.fg-download-ui')) {
-      console.log('FitGirl Downloader: UI already exists, skipping creation');
-      return;
-    }
-
-
     const uiContainer = document.createElement('div');
     uiContainer.className = 'fg-download-ui';
     uiContainer.innerHTML = `
       <div class="fg-header">
-        <h3>🎮 FitGirl Downloader</h3>
-        <div class="fg-progress-container">
-          <div class="fg-progress-bar">
-            <div class="fg-progress-fill" style="width: 0%"></div>
-          </div>
-          <div class="fg-progress-text">0 / 0 files</div>
-        </div>
+        <h3 class="fg-title">🎮 FitGirl Downloader</h3>
       </div>
       
       <div class="fg-controls">
@@ -182,22 +194,34 @@ class FitGirlDownloader {
       </div>
     `;
 
-
     container.insertBefore(uiContainer, container.firstChild);
 
+    // Cache elements after insertion
+    this.cacheElements();
 
     await this.extractAndDisplayLinks();
-
-
     this.bindEventHandlers();
+  }
+
+  cacheElements() {
+    this.cachedElements = {
+      fileList: document.querySelector('.fg-file-list'),
+      startBtn: document.querySelector('.fg-start-btn'),
+      stopBtn: document.querySelector('.fg-stop-btn'),
+      toggleSelectBtn: document.querySelector('.fg-toggle-select'),
+      resetBtn: document.querySelector('.fg-reset-selection'),
+      counterText: document.querySelector('.fg-counter-text'),
+      statusText: document.querySelector('.fg-status-text'),
+      progressFill: document.querySelector('.fg-progress-fill'),
+      progressText: document.querySelector('.fg-progress-text')
+    };
   }
 
   async extractAndDisplayLinks() {
     const links = this.getAllDownloadLinks();
-    const fileListContainer = document.querySelector('.fg-file-list');
+    const fileListContainer = this.cachedElements.fileList;
 
     if (!fileListContainer) return;
-
 
     const state = await this.loadPageState();
     const selections = state.selections || {};
@@ -205,111 +229,130 @@ class FitGirlDownloader {
 
     this.fileItems = [];
 
+    // Use DocumentFragment for better performance
+    const fragment = document.createDocumentFragment();
+
     links.forEach((link, index) => {
-      const fileItem = document.createElement('div');
-      fileItem.className = 'fg-file-item';
-      fileItem.dataset.url = link.url;
-      fileItem.dataset.index = index;
-
-      const isSkipped = skippedFiles.includes(link.url);
-      const isSelected = selections[link.url] !== false;
-
-      if (isSkipped) {
-        fileItem.classList.add('fg-file-skipped');
-      }
-
-      fileItem.innerHTML = `
-        <div class="fg-file-checkbox">
-          <input type="checkbox" 
-                 class="fg-checkbox" 
-                 data-url="${link.url}" 
-                 ${isSelected ? 'checked' : ''}
-                 ${isSkipped ? 'disabled' : ''}>
-        </div>
-        <div class="fg-file-info">
-          <div class="fg-file-name">${link.text || this.getFilenameFromUrl(link.url)}</div>
-          <div class="fg-file-url">${link.url}</div>
-        </div>
-        <div class="fg-file-status">
-          ${isSkipped ? '<span class="fg-badge fg-badge-skipped">Skipped</span>' : ''}
-        </div>
-        <div class="fg-file-actions">
-          ${isSkipped ?
-          '<button class="fg-btn fg-btn-xs fg-undo-skip" data-url="' + link.url + '">↩️ Undo</button>' :
-          '<button class="fg-btn fg-btn-xs fg-skip-file" data-url="' + link.url + '">⏭️ Skip</button>'
-        }
-        </div>
-      `;
-
-      fileListContainer.appendChild(fileItem);
-      this.fileItems.push({
-        element: fileItem,
-        url: link.url,
-        text: link.text,
-        index: index,
-        isSkipped: isSkipped
-      });
+      const fileItem = this.createFileItem(link, index, selections, skippedFiles);
+      fragment.appendChild(fileItem.element);
+      this.fileItems.push(fileItem);
     });
 
+    fileListContainer.appendChild(fragment);
 
     this.updateCounter();
     this.updateToggleButton();
 
+    // Delegate events instead of individual listeners
+    this.delegateFileItemEvents();
+  }
 
-    document.querySelectorAll('.fg-checkbox').forEach(checkbox => {
-      checkbox.addEventListener('change', () => this.saveSelections());
+  createFileItem(link, index, selections, skippedFiles) {
+    const fileItem = document.createElement('div');
+    fileItem.className = 'fg-file-item';
+    fileItem.dataset.url = link.url;
+    fileItem.dataset.index = index;
+
+    const isSkipped = skippedFiles.includes(link.url);
+    const isSelected = selections[link.url] !== false;
+
+    if (isSkipped) {
+      fileItem.classList.add('fg-file-skipped');
+    }
+
+    fileItem.innerHTML = `
+      <div class="fg-file-checkbox">
+        <input type="checkbox" 
+               class="fg-checkbox" 
+               data-url="${link.url}" 
+               ${isSelected ? 'checked' : ''}
+               ${isSkipped ? 'disabled' : ''}>
+      </div>
+      <div class="fg-file-info">
+        <div class="fg-file-name">${this.escapeHtml(link.text || this.getFilenameFromUrl(link.url))}</div>
+        <div class="fg-file-url">${this.escapeHtml(link.url)}</div>
+      </div>
+      <div class="fg-file-status">
+        ${isSkipped ? '<span class="fg-badge fg-badge-skipped">Skipped</span>' : ''}
+      </div>
+      <div class="fg-file-actions">
+        ${isSkipped ?
+        `<button class="fg-btn fg-btn-xs fg-undo-skip" data-url="${link.url}">↩️ Undo</button>` :
+        `<button class="fg-btn fg-btn-xs fg-skip-file" data-url="${link.url}">⏭️ Skip</button>`
+      }
+      </div>
+    `;
+
+    return {
+      element: fileItem,
+      url: link.url,
+      text: link.text,
+      index: index,
+      isSkipped: isSkipped
+    };
+  }
+
+  delegateFileItemEvents() {
+    const fileList = this.cachedElements.fileList;
+
+    // Single event listener for all checkboxes
+    fileList.addEventListener('change', (e) => {
+      if (e.target.classList.contains('fg-checkbox')) {
+        this.debouncedSaveSelections();
+        this.debouncedUpdateCounter();
+      }
     });
 
-
-    document.querySelectorAll('.fg-skip-file').forEach(btn => {
-      btn.addEventListener('click', (e) => {
+    // Single event listener for all buttons
+    fileList.addEventListener('click', (e) => {
+      const target = e.target;
+      
+      if (target.classList.contains('fg-skip-file')) {
         e.stopPropagation();
-        this.handleSkipFile(e.target.dataset.url);
-      });
-    });
-
-    document.querySelectorAll('.fg-undo-skip').forEach(btn => {
-      btn.addEventListener('click', (e) => {
+        this.handleSkipFile(target.dataset.url);
+      } else if (target.classList.contains('fg-undo-skip')) {
         e.stopPropagation();
-        this.handleUndoSkip(e.target.dataset.url);
-      });
+        this.handleUndoSkip(target.dataset.url);
+      } else if (target.classList.contains('fg-retry-file')) {
+        e.stopPropagation();
+        this.retryFile(target.dataset.url);
+      }
     });
 
+    // Single click handler for file items
+    fileList.addEventListener('click', (e) => {
+      const fileItem = e.target.closest('.fg-file-item');
+      if (!fileItem) return;
 
-    document.querySelectorAll('.fg-file-item').forEach(fileItem => {
-      fileItem.addEventListener('click', (e) => {
-
-        if (e.target.tagName === 'BUTTON' ||
+      // Don't toggle if clicking buttons or checkboxes
+      if (e.target.tagName === 'BUTTON' ||
           e.target.tagName === 'A' ||
           e.target.classList.contains('fg-checkbox') ||
           e.target.closest('button')) {
-          return;
-        }
+        return;
+      }
 
-
-        const checkbox = fileItem.querySelector('.fg-checkbox');
-        if (checkbox && !checkbox.disabled) {
-          checkbox.checked = !checkbox.checked;
-          this.saveSelections();
-          this.updateCounter();
-        }
-      });
-
-
-      if (!fileItem.classList.contains('fg-file-skipped')) {
-        fileItem.style.cursor = 'pointer';
+      const checkbox = fileItem.querySelector('.fg-checkbox');
+      if (checkbox && !checkbox.disabled) {
+        checkbox.checked = !checkbox.checked;
+        this.debouncedSaveSelections();
+        this.debouncedUpdateCounter();
       }
     });
   }
 
   getAllDownloadLinks() {
+    // Use Set for automatic deduplication
+    const uniqueUrls = new Set();
     const links = [];
+
+    // Single query, cached result
     const linkElements = document.querySelectorAll('a[href*="fuckingfast.co"]');
 
     for (const element of linkElements) {
       const url = element.href;
-
-      if (url && !url.includes('optional') && !links.find(l => l.url === url)) {
+      if (url && !url.includes('optional') && !uniqueUrls.has(url)) {
+        uniqueUrls.add(url);
         links.push({
           url: url,
           element: element,
@@ -323,22 +366,23 @@ class FitGirlDownloader {
   }
 
   bindEventHandlers() {
+    const { startBtn, stopBtn, toggleSelectBtn, resetBtn } = this.cachedElements;
 
-    const startBtn = document.querySelector('.fg-start-btn');
     if (startBtn) {
       startBtn.addEventListener('click', () => this.startBulkDownload());
     }
 
-
-    const stopBtn = document.querySelector('.fg-stop-btn');
     if (stopBtn) {
       stopBtn.addEventListener('click', () => this.stopDownload());
     }
 
+    if (toggleSelectBtn) {
+      toggleSelectBtn.addEventListener('click', () => this.toggleSelectAll());
+    }
 
-
-    document.querySelector('.fg-toggle-select')?.addEventListener('click', () => this.toggleSelectAll());
-    document.querySelector('.fg-reset-selection')?.addEventListener('click', () => this.resetSelection());
+    if (resetBtn) {
+      resetBtn.addEventListener('click', () => this.resetSelection());
+    }
   }
 
   async startBulkDownload(resumeFromIndex = null, resumeFiles = null) {
@@ -358,22 +402,23 @@ class FitGirlDownloader {
     this.shouldStop = false;
     this.currentIndex = resumeFromIndex !== null ? resumeFromIndex : 0;
 
-
-    document.querySelector('.fg-start-btn').style.display = 'none';
-    document.querySelector('.fg-stop-btn').style.display = 'block';
+    const { startBtn, stopBtn } = this.cachedElements;
+    startBtn.style.display = 'none';
+    stopBtn.style.display = 'block';
 
     this.updateStatus(`📥 Starting download of ${selectedFiles.length} files...`);
 
     let success = 0;
     let failures = 0;
     let consecutiveFailures = 0;
-    
-    // Get completed files to skip on resume
+
+    // Get completed files once
     const completedResponse = await browserAPI.runtime.sendMessage({
       action: 'getStorage',
       keys: [CONFIG.STORAGE_KEYS.COMPLETED_URLS]
     });
-    const completedUrls = new Set(completedResponse.success ? completedResponse.data[CONFIG.STORAGE_KEYS.COMPLETED_URLS] || [] : []);
+    const completedUrls = new Set(completedResponse.success ? 
+      completedResponse.data[CONFIG.STORAGE_KEYS.COMPLETED_URLS] || [] : []);
 
     for (let i = this.currentIndex; i < selectedFiles.length; i++) {
       if (this.shouldStop) {
@@ -385,8 +430,7 @@ class FitGirlDownloader {
 
       const file = selectedFiles[i];
       this.currentIndex = i;
-      
-      // Skip if already completed
+
       if (completedUrls.has(file.url)) {
         this.updateStatus(`[✓] Skipping already downloaded: ${this.getFilenameFromUrl(file.url)}`);
         this.setFileStatus(file.url, CONFIG.STATUS.COMPLETED);
@@ -400,7 +444,6 @@ class FitGirlDownloader {
       try {
         let downloadUrl = file.url;
 
-
         if (!downloadUrl.includes('/dl/')) {
           downloadUrl = await this.extractRealDownloadUrl(file.url);
         }
@@ -411,71 +454,61 @@ class FitGirlDownloader {
           success++;
           consecutiveFailures = 0;
         } else {
-          throw new Error('Could not extract download URL');
+          throw new Error('Failed to extract download URL');
         }
       } catch (error) {
-        console.error(`Failed to process ${file.url}:`, error);
+        console.error(`Download failed for ${file.url}:`, error);
         this.setFileStatus(file.url, CONFIG.STATUS.FAILED, error.message);
         await this.logFailure(file.url, error.message);
         failures++;
         consecutiveFailures++;
-      }
 
-      if (consecutiveFailures >= CONFIG.CONSECUTIVE_FAILURES_THRESHOLD) {
-        this.showNotification('⚠️ Warning', 'Multiple consecutive failures detected. Pausing...');
-        const shouldContinue = confirm(`Multiple failures detected. Continue with remaining ${selectedFiles.length - i - 1} files?`);
-        if (!shouldContinue) {
-          this.shouldStop = true;
-          continue;
+        if (consecutiveFailures >= CONFIG.CONSECUTIVE_FAILURES_THRESHOLD) {
+          this.updateStatus('⚠️ Too many consecutive failures. Pausing...');
+          await this.savePauseState(i + 1, selectedFiles);
+          this.showNotification('⚠️ Paused', `${consecutiveFailures} consecutive failures. Please check your connection.`);
+          break;
         }
-        consecutiveFailures = 0;
       }
 
-      if (i < selectedFiles.length - 1 && !this.shouldStop) {
+      if (i < selectedFiles.length - 1) {
         await this.delay(CONFIG.WAIT_BETWEEN);
       }
     }
 
     this.isProcessing = false;
 
-
-    document.querySelector('.fg-start-btn').style.display = 'block';
-    document.querySelector('.fg-stop-btn').style.display = 'none';
+    const { startBtn: sb, stopBtn: stb } = this.cachedElements;
+    sb.style.display = 'block';
+    stb.style.display = 'none';
 
     if (!this.shouldStop) {
-
       await this.clearPauseState();
       this.updateStatus(`✅ Complete: ${success} successful, ${failures} failed`);
-      this.showNotification('📊 Download Complete', `Processed ${selectedFiles.length} files: ${success} successful, ${failures} failed`);
+      this.showNotification('📊 Download Complete', 
+        `Processed ${selectedFiles.length} files: ${success} successful, ${failures} failed`);
     }
   }
 
   stopDownload() {
     if (!this.isProcessing) return;
-
+    
     this.shouldStop = true;
     this.updateStatus('⏹️ Stopping after current file...');
-
-    const stopBtn = document.querySelector('.fg-stop-btn');
+    
+    const { stopBtn } = this.cachedElements;
     if (stopBtn) {
       stopBtn.disabled = true;
-      stopBtn.textContent = '⏳ Stopping...';
+      stopBtn.textContent = '⏹️ Stopping...';
     }
   }
 
   getSelectedFiles() {
-    const selectedFiles = [];
-
-    this.fileItems.forEach(item => {
-      if (item.isSkipped) return;
-
+    return this.fileItems.filter(item => {
+      if (item.isSkipped) return false;
       const checkbox = item.element.querySelector('.fg-checkbox');
-      if (checkbox && checkbox.checked) {
-        selectedFiles.push(item);
-      }
+      return checkbox && checkbox.checked;
     });
-
-    return selectedFiles;
   }
 
   async extractRealDownloadUrl(pageUrl) {
@@ -522,9 +555,11 @@ class FitGirlDownloader {
     const statusContainer = fileItem.element.querySelector('.fg-file-status');
     const actionsContainer = fileItem.element.querySelector('.fg-file-actions');
 
+    if (!statusContainer || !actionsContainer) return;
 
+    // Clear existing content
     statusContainer.innerHTML = '';
-
+    actionsContainer.innerHTML = '';
 
     const badge = document.createElement('span');
     badge.className = `fg-badge fg-badge-${status}`;
@@ -533,6 +568,7 @@ class FitGirlDownloader {
       [CONFIG.STATUS.PROCESSING]: '⏳',
       [CONFIG.STATUS.SUCCESS]: '✅',
       [CONFIG.STATUS.FAILED]: '❌',
+      [CONFIG.STATUS.COMPLETED]: '✓',
       [CONFIG.STATUS.RETRYING]: '🔄',
       [CONFIG.STATUS.SKIPPED]: '⏭️'
     };
@@ -541,6 +577,7 @@ class FitGirlDownloader {
       [CONFIG.STATUS.PROCESSING]: 'Processing',
       [CONFIG.STATUS.SUCCESS]: 'Success',
       [CONFIG.STATUS.FAILED]: 'Failed',
+      [CONFIG.STATUS.COMPLETED]: 'Completed',
       [CONFIG.STATUS.RETRYING]: 'Retrying',
       [CONFIG.STATUS.SKIPPED]: 'Skipped'
     };
@@ -553,13 +590,11 @@ class FitGirlDownloader {
 
     statusContainer.appendChild(badge);
 
-
     if (status === CONFIG.STATUS.FAILED) {
       const retryBtn = document.createElement('button');
       retryBtn.className = 'fg-btn fg-btn-xs fg-retry-file';
       retryBtn.textContent = '🔄 Retry';
       retryBtn.dataset.url = url;
-      retryBtn.addEventListener('click', () => this.retryFile(url));
       actionsContainer.appendChild(retryBtn);
     }
   }
@@ -611,8 +646,6 @@ class FitGirlDownloader {
     const actionsContainer = fileItem.element.querySelector('.fg-file-actions');
     actionsContainer.innerHTML = `<button class="fg-btn fg-btn-xs fg-undo-skip" data-url="${url}">↩️ Undo</button>`;
 
-    actionsContainer.querySelector('.fg-undo-skip').addEventListener('click', () => this.handleUndoSkip(url));
-
     await this.saveSkippedFiles();
     this.updateCounter();
     this.showNotification('⏭️ Skipped', 'File marked as skipped');
@@ -637,99 +670,80 @@ class FitGirlDownloader {
     const actionsContainer = fileItem.element.querySelector('.fg-file-actions');
     actionsContainer.innerHTML = `<button class="fg-btn fg-btn-xs fg-skip-file" data-url="${url}">⏭️ Skip</button>`;
 
-    actionsContainer.querySelector('.fg-skip-file').addEventListener('click', () => this.handleSkipFile(url));
-
     await this.saveSkippedFiles();
+    this.debouncedSaveSelections();
     this.updateCounter();
-    this.showNotification('↩️ Undo Skip', 'File restored to download list');
+    this.showNotification('↩️ Restored', 'File restored to selection');
   }
 
   selectAll() {
-    document.querySelectorAll('.fg-checkbox:not(:disabled)').forEach(cb => {
-      cb.checked = true;
-    });
-    this.saveSelections();
+    const checkboxes = document.querySelectorAll('.fg-checkbox:not(:disabled)');
+    checkboxes.forEach(cb => cb.checked = true);
+    this.debouncedSaveSelections();
     this.updateCounter();
   }
 
   deselectAll() {
-    document.querySelectorAll('.fg-checkbox:not(:disabled)').forEach(cb => {
-      cb.checked = false;
-    });
-    this.saveSelections();
+    const checkboxes = document.querySelectorAll('.fg-checkbox:not(:disabled)');
+    checkboxes.forEach(cb => cb.checked = false);
+    this.debouncedSaveSelections();
     this.updateCounter();
   }
 
   toggleSelectAll() {
     const checkboxes = document.querySelectorAll('.fg-checkbox:not(:disabled)');
     const checkedCount = document.querySelectorAll('.fg-checkbox:not(:disabled):checked').length;
-    const totalCount = checkboxes.length;
-    
-    // If more than half are checked, deselect all. Otherwise, select all.
-    const shouldSelectAll = checkedCount < totalCount / 2;
-    
-    checkboxes.forEach(cb => {
-      cb.checked = shouldSelectAll;
-    });
-    
-    this.saveSelections();
+    const shouldSelectAll = checkedCount < checkboxes.length / 2;
+
+    checkboxes.forEach(cb => cb.checked = shouldSelectAll);
+
+    this.debouncedSaveSelections();
     this.updateCounter();
     this.updateToggleButton();
   }
 
   updateToggleButton() {
-    const toggleBtn = document.querySelector('.fg-toggle-select');
+    const toggleBtn = this.cachedElements.toggleSelectBtn;
     if (!toggleBtn) return;
-    
+
     const checkboxes = document.querySelectorAll('.fg-checkbox:not(:disabled)');
     const checkedCount = document.querySelectorAll('.fg-checkbox:not(:disabled):checked').length;
-    const totalCount = checkboxes.length;
-    
+
     if (checkedCount === 0) {
-      // None selected - show "Select All"
-      toggleBtn.innerHTML = '☑️ Select All';
-      toggleBtn.classList.remove('fg-btn-secondary');
-    } else if (checkedCount === totalCount) {
-      // All selected - show "Deselect All"
-      toggleBtn.innerHTML = '☐ Deselect All';
-      toggleBtn.classList.add('fg-btn-secondary');
+      toggleBtn.textContent = '☑️ Select All';
+    } else if (checkedCount === checkboxes.length) {
+      toggleBtn.textContent = '☐ Deselect All';
     } else {
-      // Some selected - show "Select All"
-      toggleBtn.innerHTML = `☑️ Select All (${checkedCount}/${totalCount})`;
-      toggleBtn.classList.remove('fg-btn-secondary');
+      toggleBtn.textContent = '☑️ Select All';
     }
   }
 
   async resetSelection() {
-
     const state = await this.loadPageState();
     state.selections = {};
     await this.savePageState(state);
 
-    document.querySelectorAll('.fg-checkbox:not(:disabled)').forEach(cb => {
-      cb.checked = true;
-    });
+    const checkboxes = document.querySelectorAll('.fg-checkbox:not(:disabled)');
+    checkboxes.forEach(cb => cb.checked = true);
 
     this.updateCounter();
     this.showNotification('🔄 Reset', 'Selections reset to default');
   }
 
   updateCounter() {
+    const counterText = this.cachedElements.counterText;
+    if (!counterText) return;
+
     const total = this.fileItems.length;
     const skipped = this.fileItems.filter(item => item.isSkipped).length;
     const selected = document.querySelectorAll('.fg-checkbox:checked').length;
 
-    const counterText = document.querySelector('.fg-counter-text');
-    if (counterText) {
-      counterText.textContent = `${selected} of ${total} files selected (${skipped} skipped)`;
-    }
+    counterText.textContent = `${selected} of ${total} files selected (${skipped} skipped)`;
   }
 
   updateProgress(current, total) {
+    const { progressFill, progressText } = this.cachedElements;
     const percentage = Math.round((current / total) * 100);
-
-    const progressFill = document.querySelector('.fg-progress-fill');
-    const progressText = document.querySelector('.fg-progress-text');
 
     if (progressFill) {
       progressFill.style.width = `${percentage}%`;
@@ -741,7 +755,7 @@ class FitGirlDownloader {
   }
 
   updateStatus(message) {
-    const statusText = document.querySelector('.fg-status-text');
+    const { statusText } = this.cachedElements;
     if (statusText) {
       statusText.textContent = message;
     }
@@ -749,17 +763,19 @@ class FitGirlDownloader {
 
   async saveSelections() {
     const selections = {};
-    
+
     document.querySelectorAll('.fg-checkbox').forEach(checkbox => {
       selections[checkbox.dataset.url] = checkbox.checked;
     });
 
     const state = await this.loadPageState();
     state.selections = selections;
-    await this.savePageState(state);
     
+    // Batch write
+    this.queueStorageWrite(this.pageHash, state);
+
     this.updateCounter();
-    this.updateToggleButton(); // Update button text
+    this.updateToggleButton();
   }
 
   async saveSkippedFiles() {
@@ -769,7 +785,34 @@ class FitGirlDownloader {
 
     const state = await this.loadPageState();
     state.skipped = skipped;
-    await this.savePageState(state);
+    
+    // Batch write
+    this.queueStorageWrite(this.pageHash, state);
+  }
+
+  queueStorageWrite(key, value) {
+    // Queue the write
+    this.pendingStorageWrites[`page_state_${key}`] = value;
+
+    // Clear existing timeout
+    if (this.storageWriteTimeout) {
+      clearTimeout(this.storageWriteTimeout);
+    }
+
+    // Batch writes after 1 second of inactivity
+    this.storageWriteTimeout = setTimeout(async () => {
+      const writes = { ...this.pendingStorageWrites };
+      this.pendingStorageWrites = {};
+
+      try {
+        await browserAPI.runtime.sendMessage({
+          action: 'setStorage',
+          data: writes
+        });
+      } catch (error) {
+        console.error('Error in batch storage write:', error);
+      }
+    }, 1000);
   }
 
   async loadPageState() {
@@ -792,19 +835,13 @@ class FitGirlDownloader {
   }
 
   async savePageState(state) {
-    const storageKey = `page_state_${this.pageHash}`;
-
-    try {
-      await browserAPI.runtime.sendMessage({
-        action: 'setStorage',
-        data: { [storageKey]: state }
-      });
-    } catch (error) {
-      console.error('Error saving page state:', error);
-    }
+    this.queueStorageWrite(this.pageHash, state);
   }
 
   async savePauseState(currentIndex, files) {
+    // Store minimal data - only URLs, not full file objects
+    const fileUrls = files.map(f => f.url);
+    
     const pauseState = {
       isPaused: true,
       pausedAt: Date.now(),
@@ -812,7 +849,7 @@ class FitGirlDownloader {
       pageHash: this.pageHash,
       currentIndex: currentIndex,
       totalFiles: files.length,
-      files: files  // Save full file array for resume
+      fileUrls: fileUrls  // Store only URLs
     };
 
     try {
@@ -843,17 +880,17 @@ class FitGirlDownloader {
         keys: [CONFIG.STORAGE_KEYS.PAUSE_STATE]
       });
 
-      if (response.success) {
-        const pauseState = response.data[CONFIG.STORAGE_KEYS.PAUSE_STATE];
+      if (!response.success) return;
 
-        if (pauseState && pauseState.isPaused && pauseState.pageHash === this.pageHash) {
+      const pauseState = response.data[CONFIG.STORAGE_KEYS.PAUSE_STATE];
 
-          if (this.isPauseExpired(pauseState.pausedAt)) {
-            await this.clearPauseState();
-            return;
-          }
+      if (pauseState && pauseState.isPaused) {
+        if (this.isPauseExpired(pauseState.pausedAt)) {
+          await this.clearPauseState();
+          return;
+        }
 
-
+        if (pauseState.pageHash === this.pageHash) {
           this.showResumeOption(pauseState);
         }
       }
@@ -863,37 +900,40 @@ class FitGirlDownloader {
   }
 
   showResumeOption(pauseState) {
-    const resumeBanner = document.createElement('div');
-    resumeBanner.className = 'fg-resume-banner';
-    resumeBanner.innerHTML = `
+    const banner = document.createElement('div');
+    banner.className = 'fg-resume-banner';
+    banner.innerHTML = `
       <div class="fg-resume-content">
         <div class="fg-resume-icon">⏸️</div>
         <div class="fg-resume-info">
           <strong>Download Paused</strong>
-          <p>You have a paused download on this page (${this.formatTimestamp(pauseState.pausedAt)})</p>
+          <p>Resume from file ${pauseState.currentIndex + 1} of ${pauseState.totalFiles} 
+             (${this.formatTimestamp(pauseState.pausedAt)})</p>
         </div>
         <div class="fg-resume-actions">
-          <button class="fg-btn fg-btn-success fg-resume-btn">▶️ Resume</button>
-          <button class="fg-btn fg-btn-secondary fg-start-fresh-btn">🔄 Start Fresh</button>
+          <button class="fg-btn fg-btn-primary fg-resume-btn">▶️ Resume</button>
+          <button class="fg-btn fg-btn-secondary fg-discard-btn">❌ Discard</button>
         </div>
       </div>
     `;
 
-    document.body.insertBefore(resumeBanner, document.body.firstChild);
+    document.body.appendChild(banner);
 
-    resumeBanner.querySelector('.fg-resume-btn').addEventListener('click', async () => {
-      resumeBanner.remove();
-      await this.clearPauseState();
-      this.showNotification('▶️ Resuming', `Continuing from file ${pauseState.currentIndex + 1} of ${pauseState.totalFiles}`);
+    banner.querySelector('.fg-resume-btn').addEventListener('click', async () => {
+      banner.remove();
       
-      // Resume download from saved position with saved files
-      await this.startBulkDownload(pauseState.currentIndex, pauseState.files);
+      // Reconstruct file objects from URLs
+      const resumeFiles = pauseState.fileUrls.map(url => {
+        const item = this.fileItems.find(f => f.url === url);
+        return item || { url: url, text: this.getFilenameFromUrl(url) };
+      });
+      
+      await this.startBulkDownload(pauseState.currentIndex, resumeFiles);
     });
 
-    resumeBanner.querySelector('.fg-start-fresh-btn').addEventListener('click', async () => {
-      resumeBanner.remove();
+    banner.querySelector('.fg-discard-btn').addEventListener('click', async () => {
+      banner.remove();
       await this.clearPauseState();
-      this.showNotification('🔄 Fresh Start', 'Pause state cleared');
     });
   }
 
@@ -971,7 +1011,7 @@ class FitGirlDownloader {
     }
   }
 
-
+  // Utility functions
   hashString(str) {
     let hash = 0;
     for (let i = 0; i < str.length; i++) {
@@ -1021,21 +1061,62 @@ class FitGirlDownloader {
     return (now - pausedAt) > CONFIG.PAUSE_EXPIRATION_TIME;
   }
 
+  escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+      const later = () => {
+        clearTimeout(timeout);
+        func(...args);
+      };
+      clearTimeout(timeout);
+      timeout = setTimeout(later, wait);
+    };
+  }
+
   delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
+
+  // Cleanup method to prevent memory leaks
+  destroy() {
+    // Disconnect observer
+    if (this.observer) {
+      this.observer.disconnect();
+      this.observer = null;
+    }
+
+    // Clear timeouts
+    if (this.storageWriteTimeout) {
+      clearTimeout(this.storageWriteTimeout);
+    }
+
+    // Clear cached elements
+    this.cachedElements = {};
+    this.fileItems = [];
+
+    console.log('FitGirl Downloader: Cleaned up');
+  }
 }
 
+// Initialize only if not already initialized
+if (!window.fitGirlDownloaderInstance) {
+  window.fitGirlDownloaderInstance = new FitGirlDownloader();
+  
+  // Cleanup on page unload
+  window.addEventListener('beforeunload', () => {
+    if (window.fitGirlDownloaderInstance) {
+      window.fitGirlDownloaderInstance.destroy();
+      window.fitGirlDownloaderInstance = null;
+      window.fitGirlDownloaderInitialized = false;
+    }
+  });
+}
 
-let lastUrl = location.href;
-new MutationObserver(() => {
-  const url = location.href;
-  if (url !== lastUrl) {
-    lastUrl = url;
-    console.log('FitGirl Downloader: URL changed to', url);
-    setTimeout(() => new FitGirlDownloader(), 1000);
-  }
-}).observe(document, { subtree: true, childList: true });
-
-
-new FitGirlDownloader();
+})(); // End IIFE
+} // End guard

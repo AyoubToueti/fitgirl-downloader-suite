@@ -28,6 +28,10 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
   color: var(--fg-dark);
   background: var(--fg-light);
+  /* Performance optimizations */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  contain: layout style;
 }
 
 .popup-container {
@@ -80,11 +84,16 @@ body {
   text-align: center;
   transition: all 0.2s ease;
   cursor: default;
+  /* Performance optimizations */
+  contain: layout style;
+  transform: translateZ(0);
+  backface-visibility: hidden;
 }
 
 .stat-card:hover {
-  transform: translateY(-2px);
+  transform: translateY(-2px) translateZ(0);
   box-shadow: 0 4px 12px var(--fg-shadow);
+  will-change: transform;
 }
 
 .stat-icon {
@@ -156,6 +165,9 @@ body {
   width: 0%;
   transition: width 0.3s ease;
   border-radius: 999px;
+  /* Performance optimizations */
+  will-change: width;
+  transform: translateZ(0);
 }
 
 .progress-text {

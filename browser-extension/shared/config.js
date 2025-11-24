@@ -60,7 +60,17 @@ const CONFIG = {
   }
 };
 
-// Export for use in other scripts
+// Make CONFIG available globally for service workers and content scripts
+if (typeof self !== 'undefined') {
+  self.CONFIG = CONFIG;
+}
+
+// Also support window context
+if (typeof window !== 'undefined') {
+  window.CONFIG = CONFIG;
+}
+
+// Export for use in other scripts (Node.js/module systems)
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = CONFIG;
 }

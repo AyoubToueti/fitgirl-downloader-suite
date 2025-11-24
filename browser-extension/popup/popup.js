@@ -4,28 +4,69 @@
 // Cross-browser API compatibility
 const browserAPI = typeof browser !== 'undefined' ? browser : chrome;
 
-// DOM Elements
-const elements = {
-  totalDownloads: document.getElementById('total-downloads'),
-  successfulDownloads: document.getElementById('successful-downloads'),
-  failedDownloads: document.getElementById('failed-downloads'),
-  progressSection: document.getElementById('progress-section'),
-  progressFill: document.getElementById('progress-fill'),
-  progressPercentage: document.getElementById('progress-percentage'),
-  progressText: document.getElementById('progress-text'),
-  pauseState: document.getElementById('pause-state'),
-  pauseDetails: document.getElementById('pause-details'),
-  resumeBtn: document.getElementById('resume-btn'),
-  retryAllBtn: document.getElementById('retry-all-btn'),
-  failedCountBadge: document.getElementById('failed-count-badge'),
-  viewFailedBtn: document.getElementById('view-failed-btn'),
-  clearLogsBtn: document.getElementById('clear-logs-btn'),
-  failedList: document.getElementById('failed-list'),
-  failedItems: document.getElementById('failed-items'),
-  closeFailedList: document.getElementById('close-failed-list'),
-  statusMessage: document.getElementById('status-message'),
-  lastUpdated: document.getElementById('last-updated')
+// Performance utilities
+const perfUtils = {
+  // Debounce function to limit rapid calls
+  debounce: (func, wait) => {
+    let timeout;
+    return function executedFunction(...args) {
+      const later = () => {
+        clearTimeout(timeout);
+        func(...args);
+      };
+      clearTimeout(timeout);
+      timeout = setTimeout(later, wait);
+    };
+  },
+  
+  // Throttle function to limit execution rate
+  throttle: (func, limit) => {
+    let inThrottle;
+    return function(...args) {
+      if (!inThrottle) {
+        func.apply(this, args);
+        inThrottle = true;
+        setTimeout(() => inThrottle = false, limit);
+      }
+    };
+  },
+  
+  // Batch DOM updates
+  batchUpdate: (callback) => {
+    if ('requestIdleCallback' in window) {
+      requestIdleCallback(callback);
+    } else {
+      setTimeout(callback, 0);
+    }
+  }
 };
+
+// DOM Elements - Cached after DOMContentLoaded
+let elements = {};
+
+function cacheElements() {
+  elements = {
+    totalDownloads: document.getElementById('total-downloads'),
+    successfulDownloads: document.getElementById('successful-downloads'),
+    failedDownloads: document.getElementById('failed-downloads'),
+    progressSection: document.getElementById('progress-section'),
+    progressFill: document.getElementById('progress-fill'),
+    progressPercentage: document.getElementById('progress-percentage'),
+    progressText: document.getElementById('progress-text'),
+    pauseState: document.getElementById('pause-state'),
+    pauseDetails: document.getElementById('pause-details'),
+    resumeBtn: document.getElementById('resume-btn'),
+    retryAllBtn: document.getElementById('retry-all-btn'),
+    failedCountBadge: document.getElementById('failed-count-badge'),
+    viewFailedBtn: document.getElementById('view-failed-btn'),
+    clearLogsBtn: document.getElementById('clear-logs-btn'),
+    failedList: document.getElementById('failed-list'),
+    failedItems: document.getElementById('failed-items'),
+    closeFailedList: document.getElementById('close-failed-list'),
+    statusMessage: document.getElementById('status-message'),
+    lastUpdated: document.getElementById('last-updated')
+  };
+}
 
 // Storage keys (from config)
 const STORAGE_KEYS = {
@@ -39,16 +80,25 @@ const STORAGE_KEYS = {
 async function init() {
   console.log('FitGirl Downloader: Popup initializing...');
   
-  await loadStats();
-  await checkPauseState();
+  // Cache DOM elements first
+  cacheElements();
+  
+  // Load data in parallel
+  await Promise.all([
+    loadStats(),
+    checkPauseState()
+  ]);
+  
   bindEventHandlers();
   
-  // Listen for storage changes
-  browserAPI.storage.onChanged.addListener((changes, area) => {
+  // Listen for storage changes with debouncing
+  const debouncedStorageHandler = perfUtils.debounce((changes, area) => {
     if (area === 'local') {
       handleStorageChange(changes);
     }
-  });
+  }, 300);
+  
+  browserAPI.storage.onChanged.addListener(debouncedStorageHandler);
   
   console.log('FitGirl Downloader: Popup initialized');
 }
@@ -149,14 +199,15 @@ function showPauseState(pauseState) {
   };
 }
 
-// Update failed URLs list
+// Update failed URLs list (optimized with DocumentFragment and delegation)
 function updateFailedList(failedUrls) {
   if (!failedUrls || failedUrls.length === 0) {
     elements.failedItems.innerHTML = '<p class="no-failed">No failed downloads</p>';
     return;
   }
   
-  elements.failedItems.innerHTML = '';
+  // Use DocumentFragment for better performance
+  const fragment = document.createDocumentFragment();
   
   failedUrls.forEach((failed, index) => {
     const url = typeof failed === 'string' ? failed : failed.url;
@@ -170,43 +221,58 @@ function updateFailedList(failedUrls) {
         <span class="failed-item-number">#${index + 1}</span>
         <span class="failed-item-time">${timestamp ? formatTimestamp(timestamp) : ''}</span>
       </div>
-      <div class="failed-item-url">${url}</div>
-      <div class="failed-item-error">${error}</div>
+      <div class="failed-item-url">${escapeHtml(url)}</div>
+      <div class="failed-item-error">${escapeHtml(error)}</div>
       <button class="btn btn-xs btn-retry-single" data-url="${url}">
         <span class="btn-icon">🔄</span>
         <span>Retry</span>
       </button>
     `;
     
-    elements.failedItems.appendChild(item);
+    fragment.appendChild(item);
   });
   
-  // Bind retry buttons
-  document.querySelectorAll('.btn-retry-single').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      const url = e.currentTarget.dataset.url;
-      retryFailedUrl(url);
+  // Clear and append all at once
+  elements.failedItems.innerHTML = '';
+  elements.failedItems.appendChild(fragment);
+  
+  // Use event delegation instead of individual listeners
+  if (!elements.failedItems.dataset.delegated) {
+    elements.failedItems.addEventListener('click', (e) => {
+      const retryBtn = e.target.closest('.btn-retry-single');
+      if (retryBtn) {
+        const url = retryBtn.dataset.url;
+        retryFailedUrl(url);
+      }
     });
-  });
+    elements.failedItems.dataset.delegated = 'true';
+  }
 }
 
-// Bind event handlers
+// Bind event handlers (with guard against multiple bindings)
 function bindEventHandlers() {
+  // Guard against multiple bindings
+  if (elements.retryAllBtn.dataset.bound) return;
+  
   // Retry all failed button
-  elements.retryAllBtn.addEventListener('click', retryAllFailed);
+  elements.retryAllBtn.addEventListener('click', retryAllFailed, { once: false });
+  elements.retryAllBtn.dataset.bound = 'true';
   
   // View failed button
   elements.viewFailedBtn.addEventListener('click', () => {
     elements.failedList.style.display = 'block';
-  });
+  }, { once: false });
+  elements.viewFailedBtn.dataset.bound = 'true';
   
   // Close failed list button
   elements.closeFailedList.addEventListener('click', () => {
     elements.failedList.style.display = 'none';
-  });
+  }, { once: false });
+  elements.closeFailedList.dataset.bound = 'true';
   
   // Clear logs button
-  elements.clearLogsBtn.addEventListener('click', clearLogs);
+  elements.clearLogsBtn.addEventListener('click', clearLogs, { once: false });
+  elements.clearLogsBtn.dataset.bound = 'true';
 }
 
 // Retry all failed downloads
@@ -360,5 +426,18 @@ function extractPageUrl(downloadUrl) {
   return downloadUrl;
 }
 
+// Utility: Escape HTML to prevent XSS
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
 // Initialize on load
 document.addEventListener('DOMContentLoaded', init);
+
+// Cleanup on unload to prevent memory leaks
+window.addEventListener('beforeunload', () => {
+  // Remove listeners if needed
+  browserAPI.storage.onChanged.removeListener(handleStorageChange);
+});

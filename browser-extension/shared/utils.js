@@ -27,6 +27,106 @@ function hashString(str) {
 }
 
 /**
+ * Debounce function to limit rapid calls
+ * @param {Function} func - Function to debounce
+ * @param {number} wait - Wait time in ms
+ * @returns {Function} Debounced function
+ */
+function debounce(func, wait) {
+  let timeout;
+  return function executedFunction(...args) {
+    const later = () => {
+      clearTimeout(timeout);
+      func(...args);
+    };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
+}
+
+/**
+ * Throttle function to limit execution rate
+ * @param {Function} func - Function to throttle
+ * @param {number} limit - Time limit in ms
+ * @returns {Function} Throttled function
+ */
+function throttle(func, limit) {
+  let inThrottle;
+  return function(...args) {
+    if (!inThrottle) {
+      func.apply(this, args);
+      inThrottle = true;
+      setTimeout(() => inThrottle = false, limit);
+    }
+  };
+}
+
+/**
+ * Memoize function results for performance
+ * @param {Function} func - Function to memoize
+ * @param {number} maxCacheSize - Maximum cache entries (default 100)
+ * @returns {Function} Memoized function
+ */
+function memoize(func, maxCacheSize = 100) {
+  const cache = new Map();
+  return function(...args) {
+    const key = JSON.stringify(args);
+    if (cache.has(key)) {
+      return cache.get(key);
+    }
+    const result = func.apply(this, args);
+    cache.set(key, result);
+    // Limit cache size
+    if (cache.size > maxCacheSize) {
+      const firstKey = cache.keys().next().value;
+      cache.delete(firstKey);
+    }
+    return result;
+  };
+}
+
+/**
+ * Batch DOM updates using requestIdleCallback or setTimeout
+ * @param {Function} callback - Function to execute
+ */
+function batchUpdate(callback) {
+  if ('requestIdleCallback' in window) {
+    requestIdleCallback(callback);
+  } else {
+    setTimeout(callback, 0);
+  }
+}
+
+/**
+ * Escape HTML to prevent XSS attacks
+ * @param {string} text - Text to escape
+ * @returns {string} Escaped HTML
+ */
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+/**
+ * Create a cancellable promise
+ * @param {Promise} promise - Original promise
+ * @returns {Object} Object with promise and cancel function
+ */
+function makeCancellable(promise) {
+  let cancelled = false;
+  const wrappedPromise = new Promise((resolve, reject) => {
+    promise
+      .then(value => cancelled ? reject({ cancelled: true }) : resolve(value))
+      .catch(error => cancelled ? reject({ cancelled: true }) : reject(error));
+  });
+  return {
+    promise: wrappedPromise,
+    cancel: () => { cancelled = true; }
+  };
+}
+
+/**
  * Get storage data with Promise wrapper
  * @param {string|string[]|object} keys - Storage keys to retrieve
  * @returns {Promise<object>} Storage data
@@ -232,6 +332,12 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     browserAPI,
     hashString,
+    debounce,
+    throttle,
+    memoize,
+    batchUpdate,
+    escapeHtml,
+    makeCancellable,
     getStorage,
     setStorage,
     sendMessage,

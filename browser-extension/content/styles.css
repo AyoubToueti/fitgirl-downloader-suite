@@ -17,6 +17,12 @@
   --fg-transition: all 0.3s ease;
 }
 
+/* Performance optimizations */
+* {
+  /* Reduce reflow/repaint by containing layout changes */
+  contain: layout style paint;
+}
+
 /* Main UI Container */
 .fg-download-ui {
   background: linear-gradient(135deg, var(--fg-primary) 0%, var(--fg-primary-dark) 100%);
@@ -26,6 +32,12 @@
   box-shadow: 0 10px 30px var(--fg-shadow-lg);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
   color: var(--fg-dark);
+  /* Performance optimizations */
+  contain: layout style;
+  will-change: auto;
+  transform: translateZ(0); /* Force GPU acceleration */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* Header */
@@ -68,6 +80,9 @@
   transition: width 0.4s ease;
   border-radius: 999px;
   box-shadow: 0 0 10px rgba(102, 126, 234, 0.5);
+  /* Performance: Use transform instead of width when possible */
+  will-change: width;
+  transform: translateZ(0);
 }
 
 .fg-progress-text {
@@ -128,15 +143,19 @@
   gap: 6px;
   box-shadow: 0 2px 6px var(--fg-shadow);
   font-family: inherit;
+  /* Performance optimizations */
+  transform: translateZ(0);
+  backface-visibility: hidden;
 }
 
 .fg-btn:hover {
-  transform: translateY(-2px);
+  transform: translateY(-2px) translateZ(0);
   box-shadow: 0 4px 12px var(--fg-shadow-lg);
+  will-change: transform, box-shadow;
 }
 
 .fg-btn:active {
-  transform: translateY(0);
+  transform: translateY(0) translateZ(0);
 }
 
 .fg-btn:disabled {
@@ -201,6 +220,10 @@
   max-height: 600px;
   overflow-y: auto;
   box-shadow: 0 2px 8px var(--fg-shadow);
+  /* Performance: Optimize scrolling */
+  -webkit-overflow-scrolling: touch;
+  contain: layout style paint;
+  will-change: scroll-position;
 }
 
 .fg-file-list::-webkit-scrollbar {
@@ -233,12 +256,17 @@
   border: 2px solid var(--fg-light);
   border-radius: 8px;
   transition: var(--fg-transition);
+  /* Performance optimizations */
+  contain: layout style;
+  transform: translateZ(0);
+  backface-visibility: hidden;
 }
 
 .fg-file-item:hover {
   border-color: var(--fg-primary);
   box-shadow: 0 4px 12px var(--fg-shadow);
-  transform: translateY(-2px);
+  transform: translateY(-2px) translateZ(0);
+  will-change: transform;
 }
 
 .fg-file-item:last-child {
@@ -399,11 +427,18 @@
 @keyframes slideDown {
   from {
     opacity: 0;
-    transform: translateX(-50%) translateY(-20px);
+    transform: translateX(-50%) translateY(-20px) translateZ(0);
   }
   to {
     opacity: 1;
-    transform: translateX(-50%) translateY(0);
+    transform: translateX(-50%) translateY(0) translateZ(0);
+  }
+}
+
+/* Force GPU acceleration for animations */
+@media (prefers-reduced-motion: no-preference) {
+  .fg-resume-banner {
+    will-change: transform, opacity;
   }
 }
 
@@ -445,7 +480,7 @@
   position: fixed;
   top: 50%;
   right: 20px;
-  transform: translateY(-50%);
+  transform: translateY(-50%) translateZ(0);
   z-index: 9999;
   background: linear-gradient(135deg, var(--fg-primary) 0%, var(--fg-primary-dark) 100%);
   color: var(--fg-white);
@@ -458,15 +493,18 @@
   box-shadow: 0 6px 20px var(--fg-shadow-lg);
   transition: var(--fg-transition);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  /* Performance optimizations */
+  backface-visibility: hidden;
+  will-change: transform;
 }
 
 .fg-float-btn:hover {
-  transform: translateY(-50%) scale(1.05);
+  transform: translateY(-50%) scale(1.05) translateZ(0);
   box-shadow: 0 8px 30px var(--fg-shadow-lg);
 }
 
 .fg-float-btn:active {
-  transform: translateY(-50%) scale(0.98);
+  transform: translateY(-50%) scale(0.98) translateZ(0);
 }
 
 /* Responsive Design */
