@@ -221,7 +221,6 @@
   overflow-y: auto;
   box-shadow: 0 2px 8px var(--fg-shadow);
   /* Performance: Optimize scrolling */
-  -webkit-overflow-scrolling: touch;
   contain: layout style paint;
   will-change: scroll-position;
 }
