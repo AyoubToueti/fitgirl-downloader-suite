@@ -37,6 +37,25 @@ class FitGirlDownloader {
     // MutationObserver reference for cleanup
     this.observer = null;
     this.initRetryTimeout = null;
+    this.pendingMutations = [];
+    this.mutationProcessTimeout = null;
+
+    // Cache checkbox references to avoid repeated global DOM queries
+    this.checkboxElements = [];
+
+    // Cache page state in memory to reduce storage round-trips
+    this.pageStateCache = null;
+    this.pageStateLoaded = false;
+
+    // Lifecycle handlers for flushing pending writes
+    this.handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        this.flushPendingStorageWrites(true);
+      }
+    };
+    this.handlePageHide = () => {
+      this.flushPendingStorageWrites(true);
+    };
     
     console.log('FitGirl Downloader: Initializing on', this.currentPage);
     this.init();
@@ -56,6 +75,8 @@ class FitGirlDownloader {
 
   async start() {
     console.log('FitGirl Downloader: Starting initialization');
+    document.addEventListener('visibilitychange', this.handleVisibilityChange);
+    window.addEventListener('pagehide', this.handlePageHide);
     await this.checkPauseState();
     this.tryInitialize();
     this.setupMutationObserver();
@@ -109,18 +130,36 @@ class FitGirlDownloader {
         return;
       }
 
-      // Use requestIdleCallback for non-critical work
-      if ('requestIdleCallback' in window) {
-        requestIdleCallback(() => this.handleMutations(mutations));
-      } else {
-        setTimeout(() => this.handleMutations(mutations), 0);
-      }
+      // Coalesce mutation bursts to reduce repeated scan work.
+      this.queueMutationProcessing(mutations);
     });
 
     this.observer.observe(document.body, {
       childList: true,
       subtree: true
     });
+  }
+
+  queueMutationProcessing(mutations) {
+    if (!mutations || mutations.length === 0) return;
+
+    this.pendingMutations.push(...mutations);
+
+    if (this.mutationProcessTimeout) {
+      return;
+    }
+
+    this.mutationProcessTimeout = setTimeout(() => {
+      this.mutationProcessTimeout = null;
+      const batchedMutations = this.pendingMutations;
+      this.pendingMutations = [];
+
+      if ('requestIdleCallback' in window) {
+        requestIdleCallback(() => this.handleMutations(batchedMutations), { timeout: 300 });
+      } else {
+        this.handleMutations(batchedMutations);
+      }
+    }, 150);
   }
 
   handleMutations(mutations) {
@@ -243,6 +282,7 @@ class FitGirlDownloader {
 
     // Cache elements after insertion
     this.cacheElements();
+    this.refreshCheckboxCache();
 
     await this.extractAndDisplayLinks();
     this.bindEventHandlers();
@@ -284,6 +324,8 @@ class FitGirlDownloader {
     });
 
     fileListContainer.appendChild(fragment);
+
+    this.refreshCheckboxCache();
 
     this.updateCounter();
     this.updateToggleButton();
@@ -343,6 +385,7 @@ class FitGirlDownloader {
     // Single event listener for all checkboxes
     fileList.addEventListener('change', (e) => {
       if (e.target.classList.contains('fg-checkbox')) {
+        this.refreshCheckboxCache();
         this.debouncedSaveSelections();
         this.debouncedUpdateCounter();
       }
@@ -380,10 +423,41 @@ class FitGirlDownloader {
       const checkbox = fileItem.querySelector('.fg-checkbox');
       if (checkbox && !checkbox.disabled) {
         checkbox.checked = !checkbox.checked;
+        this.refreshCheckboxCache();
         this.debouncedSaveSelections();
         this.debouncedUpdateCounter();
       }
     });
+  }
+
+  refreshCheckboxCache() {
+    const fileList = this.cachedElements.fileList;
+    if (!fileList) {
+      this.checkboxElements = [];
+      return;
+    }
+
+    this.checkboxElements = Array.from(fileList.querySelectorAll('.fg-checkbox'));
+  }
+
+  getCheckboxStats() {
+    let enabled = 0;
+    let checkedEnabled = 0;
+    let checkedTotal = 0;
+
+    for (const checkbox of this.checkboxElements) {
+      if (checkbox.checked) {
+        checkedTotal++;
+      }
+      if (!checkbox.disabled) {
+        enabled++;
+        if (checkbox.checked) {
+          checkedEnabled++;
+        }
+      }
+    }
+
+    return { enabled, checkedEnabled, checkedTotal };
   }
 
   getAllDownloadLinks() {
@@ -691,6 +765,7 @@ class FitGirlDownloader {
     const actionsContainer = fileItem.element.querySelector('.fg-file-actions');
     actionsContainer.innerHTML = `<button class="fg-btn fg-btn-xs fg-undo-skip" data-url="${url}">↩️ Undo</button>`;
 
+    this.refreshCheckboxCache();
     await this.saveSkippedFiles();
     this.updateCounter();
     this.showNotification('⏭️ Skipped', 'File marked as skipped');
@@ -715,6 +790,7 @@ class FitGirlDownloader {
     const actionsContainer = fileItem.element.querySelector('.fg-file-actions');
     actionsContainer.innerHTML = `<button class="fg-btn fg-btn-xs fg-skip-file" data-url="${url}">⏭️ Skip</button>`;
 
+    this.refreshCheckboxCache();
     await this.saveSkippedFiles();
     this.debouncedSaveSelections();
     this.updateCounter();
@@ -722,25 +798,31 @@ class FitGirlDownloader {
   }
 
   selectAll() {
-    const checkboxes = document.querySelectorAll('.fg-checkbox:not(:disabled)');
-    checkboxes.forEach(cb => cb.checked = true);
+    this.refreshCheckboxCache();
+    this.checkboxElements.forEach(cb => {
+      if (!cb.disabled) cb.checked = true;
+    });
     this.debouncedSaveSelections();
     this.updateCounter();
   }
 
   deselectAll() {
-    const checkboxes = document.querySelectorAll('.fg-checkbox:not(:disabled)');
-    checkboxes.forEach(cb => cb.checked = false);
+    this.refreshCheckboxCache();
+    this.checkboxElements.forEach(cb => {
+      if (!cb.disabled) cb.checked = false;
+    });
     this.debouncedSaveSelections();
     this.updateCounter();
   }
 
   toggleSelectAll() {
-    const checkboxes = document.querySelectorAll('.fg-checkbox:not(:disabled)');
-    const checkedCount = document.querySelectorAll('.fg-checkbox:not(:disabled):checked').length;
-    const shouldSelectAll = checkedCount < checkboxes.length / 2;
+    this.refreshCheckboxCache();
+    const { enabled, checkedEnabled } = this.getCheckboxStats();
+    const shouldSelectAll = checkedEnabled < enabled / 2;
 
-    checkboxes.forEach(cb => cb.checked = shouldSelectAll);
+    this.checkboxElements.forEach(cb => {
+      if (!cb.disabled) cb.checked = shouldSelectAll;
+    });
 
     this.debouncedSaveSelections();
     this.updateCounter();
@@ -751,12 +833,12 @@ class FitGirlDownloader {
     const toggleBtn = this.cachedElements.toggleSelectBtn;
     if (!toggleBtn) return;
 
-    const checkboxes = document.querySelectorAll('.fg-checkbox:not(:disabled)');
-    const checkedCount = document.querySelectorAll('.fg-checkbox:not(:disabled):checked').length;
+    this.refreshCheckboxCache();
+    const { enabled, checkedEnabled } = this.getCheckboxStats();
 
-    if (checkedCount === 0) {
+    if (checkedEnabled === 0) {
       toggleBtn.textContent = '☑️ Select All';
-    } else if (checkedCount === checkboxes.length) {
+    } else if (checkedEnabled === enabled) {
       toggleBtn.textContent = '☐ Deselect All';
     } else {
       toggleBtn.textContent = '☑️ Select All';
@@ -768,8 +850,10 @@ class FitGirlDownloader {
     state.selections = {};
     await this.savePageState(state);
 
-    const checkboxes = document.querySelectorAll('.fg-checkbox:not(:disabled)');
-    checkboxes.forEach(cb => cb.checked = true);
+    this.refreshCheckboxCache();
+    this.checkboxElements.forEach(cb => {
+      if (!cb.disabled) cb.checked = true;
+    });
 
     this.updateCounter();
     this.showNotification('🔄 Reset', 'Selections reset to default');
@@ -779,11 +863,12 @@ class FitGirlDownloader {
     const counterText = this.cachedElements.counterText;
     if (!counterText) return;
 
+    this.refreshCheckboxCache();
     const total = this.fileItems.length;
     const skipped = this.fileItems.filter(item => item.isSkipped).length;
-    const selected = document.querySelectorAll('.fg-checkbox:checked').length;
+    const { checkedTotal } = this.getCheckboxStats();
 
-    counterText.textContent = `${selected} of ${total} files selected (${skipped} skipped)`;
+    counterText.textContent = `${checkedTotal} of ${total} files selected (${skipped} skipped)`;
   }
 
   updateProgress(current, total) {
@@ -809,15 +894,15 @@ class FitGirlDownloader {
   async saveSelections() {
     const selections = {};
 
-    document.querySelectorAll('.fg-checkbox').forEach(checkbox => {
+    this.refreshCheckboxCache();
+    this.checkboxElements.forEach(checkbox => {
       selections[checkbox.dataset.url] = checkbox.checked;
     });
 
     const state = await this.loadPageState();
     state.selections = selections;
-    
-    // Batch write
-    this.queueStorageWrite(this.pageHash, state);
+
+    await this.savePageState(state);
 
     this.updateCounter();
     this.updateToggleButton();
@@ -830,9 +915,8 @@ class FitGirlDownloader {
 
     const state = await this.loadPageState();
     state.skipped = skipped;
-    
-    // Batch write
-    this.queueStorageWrite(this.pageHash, state);
+
+    await this.savePageState(state);
   }
 
   queueStorageWrite(key, value) {
@@ -845,22 +929,42 @@ class FitGirlDownloader {
     }
 
     // Batch writes after 1 second of inactivity
-    this.storageWriteTimeout = setTimeout(async () => {
-      const writes = { ...this.pendingStorageWrites };
-      this.pendingStorageWrites = {};
-
-      try {
-        await browserAPI.runtime.sendMessage({
-          action: 'setStorage',
-          data: writes
-        });
-      } catch (error) {
-        console.error('Error in batch storage write:', error);
-      }
+    this.storageWriteTimeout = setTimeout(() => {
+      this.flushPendingStorageWrites();
     }, 1000);
   }
 
+  async flushPendingStorageWrites(force = false) {
+    if (this.storageWriteTimeout) {
+      clearTimeout(this.storageWriteTimeout);
+      this.storageWriteTimeout = null;
+    }
+
+    const writeKeys = Object.keys(this.pendingStorageWrites);
+    if (writeKeys.length === 0) {
+      return;
+    }
+
+    const writes = { ...this.pendingStorageWrites };
+    this.pendingStorageWrites = {};
+
+    try {
+      await browserAPI.runtime.sendMessage({
+        action: 'setStorage',
+        data: writes
+      });
+    } catch (error) {
+      console.error(`Error in ${force ? 'forced ' : ''}batch storage write:`, error);
+      // Restore writes for a later retry if flush fails.
+      Object.assign(this.pendingStorageWrites, writes);
+    }
+  }
+
   async loadPageState() {
+    if (this.pageStateLoaded) {
+      return this.pageStateCache;
+    }
+
     const storageKey = `page_state_${this.pageHash}`;
 
     try {
@@ -870,16 +974,22 @@ class FitGirlDownloader {
       });
 
       if (response.success) {
-        return response.data[storageKey] || { selections: {}, skipped: [] };
+        this.pageStateCache = response.data[storageKey] || { selections: {}, skipped: [] };
+        this.pageStateLoaded = true;
+        return this.pageStateCache;
       }
     } catch (error) {
       console.error('Error loading page state:', error);
     }
 
-    return { selections: {}, skipped: [] };
+    this.pageStateCache = { selections: {}, skipped: [] };
+    this.pageStateLoaded = true;
+    return this.pageStateCache;
   }
 
   async savePageState(state) {
+    this.pageStateCache = state;
+    this.pageStateLoaded = true;
     this.queueStorageWrite(this.pageHash, state);
   }
 
@@ -1140,15 +1250,26 @@ class FitGirlDownloader {
     if (this.storageWriteTimeout) {
       clearTimeout(this.storageWriteTimeout);
     }
+    this.flushPendingStorageWrites(true);
 
     if (this.initRetryTimeout) {
       clearTimeout(this.initRetryTimeout);
       this.initRetryTimeout = null;
     }
 
+    if (this.mutationProcessTimeout) {
+      clearTimeout(this.mutationProcessTimeout);
+      this.mutationProcessTimeout = null;
+    }
+
+    document.removeEventListener('visibilitychange', this.handleVisibilityChange);
+    window.removeEventListener('pagehide', this.handlePageHide);
+
     // Clear cached elements
     this.cachedElements = {};
     this.fileItems = [];
+    this.checkboxElements = [];
+    this.pendingMutations = [];
 
     console.log('FitGirl Downloader: Cleaned up');
   }
