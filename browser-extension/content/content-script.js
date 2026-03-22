@@ -36,9 +36,14 @@ class FitGirlDownloader {
     
     // MutationObserver reference for cleanup
     this.observer = null;
+    this.initRetryTimeout = null;
     
     console.log('FitGirl Downloader: Initializing on', this.currentPage);
     this.init();
+  }
+
+  hasMainUI() {
+    return !!document.querySelector('.fg-download-ui');
   }
 
   async init() {
@@ -59,12 +64,31 @@ class FitGirlDownloader {
   tryInitialize(attempt = 1) {
     console.log(`FitGirl Downloader: Initialization attempt ${attempt}`);
 
+    if (this.initialized) {
+      return;
+    }
+
     if (this.isFitGirlPage()) {
+      if (this.hasMainUI()) {
+        this.initialized = true;
+        return;
+      }
+
       if (this.processFitGirlPage()) {
         this.initialized = true;
+        if (this.initRetryTimeout) {
+          clearTimeout(this.initRetryTimeout);
+          this.initRetryTimeout = null;
+        }
         console.log('FitGirl Downloader: Successfully initialized on FitGirl page');
       } else if (attempt < 5) {
-        setTimeout(() => this.tryInitialize(attempt + 1), 1000 * attempt);
+        if (this.initRetryTimeout) {
+          clearTimeout(this.initRetryTimeout);
+        }
+        this.initRetryTimeout = setTimeout(() => {
+          this.initRetryTimeout = null;
+          this.tryInitialize(attempt + 1);
+        }, 1000 * attempt);
       }
     } else if (this.isFuckingFastPage()) {
       this.processFuckingFastPage();
@@ -100,6 +124,10 @@ class FitGirlDownloader {
   }
 
   handleMutations(mutations) {
+    if (this.isFitGirlPage() && this.hasMainUI()) {
+      return;
+    }
+
     for (const mutation of mutations) {
       for (const node of mutation.addedNodes) {
         if (node.nodeType === 1) {
@@ -109,7 +137,9 @@ class FitGirlDownloader {
             node.id === 'plaintext'
           )) {
             console.log('FitGirl Downloader: New download content detected');
-            this.tryInitialize();
+            if (!this.isFitGirlPage() || !this.hasMainUI()) {
+              this.tryInitialize();
+            }
             return; // Exit early
           }
         }
@@ -128,9 +158,17 @@ class FitGirlDownloader {
   processFitGirlPage() {
     const downloadSection = this.findDownloadSection();
     if (downloadSection) {
+      if (downloadSection.querySelector('.fg-download-ui')) {
+        return true;
+      }
       this.createDownloadUI(downloadSection);
       return true;
     }
+
+    if (this.hasMainUI()) {
+      return true;
+    }
+
     return false;
   }
 
@@ -158,6 +196,13 @@ class FitGirlDownloader {
   }
 
   async createDownloadUI(container) {
+    if (!container) return;
+
+    if (container.querySelector('.fg-download-ui') || this.hasMainUI()) {
+      console.log('FitGirl Downloader: Main UI already exists, skipping render');
+      return;
+    }
+
     const uiContainer = document.createElement('div');
     uiContainer.className = 'fg-download-ui';
     uiContainer.innerHTML = `
@@ -1094,6 +1139,11 @@ class FitGirlDownloader {
     // Clear timeouts
     if (this.storageWriteTimeout) {
       clearTimeout(this.storageWriteTimeout);
+    }
+
+    if (this.initRetryTimeout) {
+      clearTimeout(this.initRetryTimeout);
+      this.initRetryTimeout = null;
     }
 
     // Clear cached elements
