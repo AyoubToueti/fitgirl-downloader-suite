@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "FitGirl Downloader",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "Automatically detect and download FitGirl fuckingfast.co links with pause/resume, file selection, and retry capabilities",
   "permissions": [
     "storage",
@@ -10,8 +10,7 @@
     "tabs"
   ],
   "host_permissions": [
-    "https://fitgirl-repacks.site/*",
-    "https://*.fitgirl-repacks.site/*",
+    "https://paste.fitgirl-repacks.site/*",
     "https://fuckingfast.co/*",
     "https://*.fuckingfast.co/*"
   ],
@@ -21,8 +20,7 @@
   "content_scripts": [
     {
       "matches": [
-        "https://fitgirl-repacks.site/*",
-        "https://*.fitgirl-repacks.site/*",
+        "https://paste.fitgirl-repacks.site/*",
         "https://fuckingfast.co/*",
         "https://*.fuckingfast.co/*"
       ],
