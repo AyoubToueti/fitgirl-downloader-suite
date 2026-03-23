@@ -20,8 +20,16 @@ const CONFIG = {
     PAUSE_STATE: 'pause_state',
     FILE_SELECTIONS: 'file_selections',
     SKIPPED_FILES: 'skipped_files',
-    DOWNLOAD_STATS: 'download_stats'
+    DOWNLOAD_STATS: 'download_stats',
+    USER_PREFERENCES: 'user_preferences'
   },
+
+  // UI mode settings
+  UI_MODES: {
+    MODAL: 'modal',
+    INLINE: 'inline'
+  },
+  DEFAULT_UI_MODE: 'modal',
   
   // Status types
   STATUS: {

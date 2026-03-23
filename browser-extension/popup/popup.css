@@ -221,6 +221,52 @@ body {
   gap: 12px;
 }
 
+/* Settings */
+.popup-settings {
+  padding: 14px 16px;
+  background: #f8fafc;
+  border-top: 1px solid #e5e7eb;
+  border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--fg-dark);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.ui-mode-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid #dbe2ea;
+  background: var(--fg-white);
+  color: var(--fg-dark);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.ui-mode-option:hover {
+  border-color: #c5d0dd;
+}
+
+.ui-mode-option input[type="radio"] {
+  accent-color: var(--fg-primary);
+}
+
+.settings-hint {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--fg-muted);
+}
+
 .action-row {
   display: grid;
   grid-template-columns: 1fr 1fr;

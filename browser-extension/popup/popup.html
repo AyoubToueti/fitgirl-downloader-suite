@@ -86,6 +86,20 @@
       </div>
     </div>
 
+    <!-- Settings -->
+    <div class="popup-settings">
+      <div class="settings-title">Rendering Mode</div>
+      <label class="ui-mode-option" for="ui-mode-modal">
+        <input type="radio" id="ui-mode-modal" name="ui-mode" value="modal">
+        <span>Modal UI (recommended)</span>
+      </label>
+      <label class="ui-mode-option" for="ui-mode-inline">
+        <input type="radio" id="ui-mode-inline" name="ui-mode" value="inline">
+        <span>Inline UI (classic)</span>
+      </label>
+      <p class="settings-hint" id="ui-mode-status">Mode applies after page reload.</p>
+    </div>
+
     <!-- Failed URLs List (hidden by default) -->
     <div class="popup-failed-list" id="failed-list" style="display: none;">
       <div class="failed-header">
@@ -104,6 +118,7 @@
     </div>
   </div>
 
+  <script src="../shared/config.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

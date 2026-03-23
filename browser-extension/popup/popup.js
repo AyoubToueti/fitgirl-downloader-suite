@@ -64,7 +64,11 @@ function cacheElements() {
     failedItems: document.getElementById('failed-items'),
     closeFailedList: document.getElementById('close-failed-list'),
     statusMessage: document.getElementById('status-message'),
-    lastUpdated: document.getElementById('last-updated')
+    lastUpdated: document.getElementById('last-updated'),
+    uiModeModal: document.getElementById('ui-mode-modal'),
+    uiModeInline: document.getElementById('ui-mode-inline'),
+    uiModeStatus: document.getElementById('ui-mode-status'),
+    uiModeInputs: Array.from(document.querySelectorAll('input[name="ui-mode"]'))
   };
 }
 
@@ -73,8 +77,16 @@ const STORAGE_KEYS = {
   COMPLETED_URLS: 'completed_urls',
   FAILED_URLS: 'failed_urls',
   PAUSE_STATE: 'pause_state',
-  DOWNLOAD_STATS: 'download_stats'
+  DOWNLOAD_STATS: 'download_stats',
+  USER_PREFERENCES: (typeof CONFIG !== 'undefined' && CONFIG.STORAGE_KEYS && CONFIG.STORAGE_KEYS.USER_PREFERENCES) || 'user_preferences'
 };
+
+const UI_MODES = {
+  MODAL: (typeof CONFIG !== 'undefined' && CONFIG.UI_MODES && CONFIG.UI_MODES.MODAL) || 'modal',
+  INLINE: (typeof CONFIG !== 'undefined' && CONFIG.UI_MODES && CONFIG.UI_MODES.INLINE) || 'inline'
+};
+
+const DEFAULT_UI_MODE = (typeof CONFIG !== 'undefined' && CONFIG.DEFAULT_UI_MODE) || UI_MODES.MODAL;
 
 // Initialize popup
 async function init() {
@@ -86,7 +98,8 @@ async function init() {
   // Load data in parallel
   await Promise.all([
     loadStats(),
-    checkPauseState()
+    checkPauseState(),
+    loadUIModePreference()
   ]);
   
   bindEventHandlers();
@@ -273,6 +286,135 @@ function bindEventHandlers() {
   // Clear logs button
   elements.clearLogsBtn.addEventListener('click', clearLogs, { once: false });
   elements.clearLogsBtn.dataset.bound = 'true';
+
+  // UI mode controls
+  elements.uiModeInputs.forEach((input) => {
+    if (input.dataset.bound) return;
+    input.addEventListener('change', (event) => {
+      if (event.target.checked) {
+        saveUIModePreference(event.target.value);
+      }
+    });
+    input.dataset.bound = 'true';
+  });
+}
+
+function normalizeUIMode(mode) {
+  if (mode === UI_MODES.INLINE) return UI_MODES.INLINE;
+  return UI_MODES.MODAL;
+}
+
+function applyUIModeToUI(mode) {
+  const normalized = normalizeUIMode(mode);
+  if (elements.uiModeModal) {
+    elements.uiModeModal.checked = normalized === UI_MODES.MODAL;
+  }
+  if (elements.uiModeInline) {
+    elements.uiModeInline.checked = normalized === UI_MODES.INLINE;
+  }
+}
+
+async function getStorageViaBackground(keys) {
+  try {
+    const response = await browserAPI.runtime.sendMessage({
+      action: 'getStorage',
+      keys
+    });
+
+    if (response && response.success) {
+      return response.data || {};
+    }
+  } catch (error) {
+    console.error('Popup getStorage via background failed:', error);
+  }
+
+  return {};
+}
+
+async function setStorageViaBackground(data) {
+  const response = await browserAPI.runtime.sendMessage({
+    action: 'setStorage',
+    data
+  });
+
+  if (!response || !response.success) {
+    throw new Error((response && response.error) || 'Storage save failed');
+  }
+}
+
+async function loadUIModePreference() {
+  const storage = await getStorageViaBackground([STORAGE_KEYS.USER_PREFERENCES]);
+  const prefs = storage[STORAGE_KEYS.USER_PREFERENCES] || {};
+  const mode = normalizeUIMode(prefs.uiMode);
+
+  applyUIModeToUI(mode);
+}
+
+async function reloadActiveTabAfterModeSwitch() {
+  return new Promise((resolve) => {
+    if (!browserAPI.tabs || !browserAPI.tabs.query || !browserAPI.tabs.reload) {
+      resolve(false);
+      return;
+    }
+
+    browserAPI.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (browserAPI.runtime && browserAPI.runtime.lastError) {
+        console.error('Error querying active tab:', browserAPI.runtime.lastError);
+        resolve(false);
+        return;
+      }
+
+      const activeTab = tabs && tabs[0];
+      if (!activeTab || typeof activeTab.id === 'undefined') {
+        resolve(false);
+        return;
+      }
+
+      browserAPI.tabs.reload(activeTab.id, {}, () => {
+        if (browserAPI.runtime && browserAPI.runtime.lastError) {
+          console.error('Error reloading active tab:', browserAPI.runtime.lastError);
+          resolve(false);
+          return;
+        }
+
+        resolve(true);
+      });
+    });
+  });
+}
+
+async function saveUIModePreference(mode) {
+  const normalizedMode = normalizeUIMode(mode);
+
+  try {
+    const storage = await getStorageViaBackground([STORAGE_KEYS.USER_PREFERENCES]);
+    const prefs = storage[STORAGE_KEYS.USER_PREFERENCES] || {};
+    const nextPrefs = {
+      ...prefs,
+      uiMode: normalizedMode
+    };
+
+    await setStorageViaBackground({
+      [STORAGE_KEYS.USER_PREFERENCES]: nextPrefs
+    });
+
+    applyUIModeToUI(normalizedMode);
+    const reloaded = await reloadActiveTabAfterModeSwitch();
+
+    if (elements.uiModeStatus) {
+      elements.uiModeStatus.textContent = reloaded ?
+        `Saved: ${normalizedMode === UI_MODES.MODAL ? 'Modal UI' : 'Inline UI'}. Page reloaded.` :
+        `Saved: ${normalizedMode === UI_MODES.MODAL ? 'Modal UI' : 'Inline UI'}. Reload page to apply.`;
+    }
+    showStatus(reloaded ? 'UI mode saved and page reloaded' : 'UI mode saved', 'success');
+  } catch (error) {
+    console.error('Error saving ui mode:', error);
+    applyUIModeToUI(DEFAULT_UI_MODE);
+    if (elements.uiModeStatus) {
+      elements.uiModeStatus.textContent = 'Failed to save mode. Try again.';
+    }
+    showStatus('Failed to save UI mode', 'error');
+  }
 }
 
 // Retry all failed downloads
