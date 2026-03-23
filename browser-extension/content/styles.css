@@ -23,6 +23,14 @@
   contain: layout style paint;
 }
 
+/* Keep viewport positioning reliable for fixed overlays */
+html,
+body,
+.fg-links-modal-overlay,
+.fg-links-modal {
+  contain: none !important;
+}
+
 /* Main UI Container */
 .fg-download-ui {
   background: linear-gradient(135deg, var(--fg-primary) 0%, var(--fg-primary-dark) 100%);
@@ -107,6 +115,10 @@
   gap: 12px;
   margin-bottom: 16px;
   flex-wrap: wrap;
+}
+
+.fg-control-group .fg-toggle-links {
+  margin-left: auto;
 }
 
 .fg-selection-controls {
@@ -642,6 +654,10 @@ body.fg-links-modal-open {
 
   .fg-control-group {
     flex-direction: column;
+  }
+
+  .fg-control-group .fg-toggle-links {
+    margin-left: 0;
   }
 
   .fg-links-modal-overlay {

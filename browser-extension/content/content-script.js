@@ -262,9 +262,6 @@ class FitGirlDownloader {
           <button class="fg-btn fg-btn-danger fg-stop-btn" style="display: none;">
             ⏹️ Stop
           </button>
-        </div>
-
-        <div class="fg-control-group">
           <button class="fg-btn fg-btn-secondary fg-toggle-links">
             👁️ Show Original Links
           </button>
@@ -369,7 +366,7 @@ class FitGirlDownloader {
                ${isSkipped ? 'disabled' : ''}>
       </div>
       <div class="fg-file-info">
-        <div class="fg-file-name">${this.escapeHtml(link.text || this.getFilenameFromUrl(link.url))}</div>
+        <div class="fg-file-name">${this.escapeHtml(this.getFilenameFromUrl(link.url))}</div>
         <div class="fg-file-url">${this.escapeHtml(link.url)}</div>
       </div>
       <div class="fg-file-status">
@@ -1391,11 +1388,22 @@ class FitGirlDownloader {
   getFilenameFromUrl(url) {
     try {
       const urlObj = new URL(url);
-      const pathname = urlObj.pathname;
+      
+      const hashName = decodeURIComponent((urlObj.hash || '').replace(/^#/, '')).trim();
+      if (hashName) {
+        return hashName;
+      }
+
+      const pathname = decodeURIComponent(urlObj.pathname || '');
       const segments = pathname.split('/').filter(s => s);
       return segments[segments.length - 1] || 'unknown';
     } catch (error) {
-      const match = url.match(/([^\/#]+)(?=#|$)/);
+      const hashMatch = url.match(/#([^#]+)$/);
+      if (hashMatch && hashMatch[1]) {
+        return decodeURIComponent(hashMatch[1]).trim();
+      }
+
+      const match = url.match(/([^\/#?]+)(?:\?|$)/);
       return match ? match[1] : 'unknown';
     }
   }
