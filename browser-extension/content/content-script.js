@@ -49,6 +49,8 @@ class FitGirlDownloader {
 
     // Toggle state for original links visibility
     this.originalLinksHidden = true;
+    this.linksModal = null;
+    this.modalKeydownHandler = null;
 
     // Lifecycle handlers for flushing pending writes
     this.handleVisibilityChange = () => {
@@ -541,6 +543,8 @@ class FitGirlDownloader {
     const toggleBtn = this.cachedElements.toggleLinksBtn;
     if (!toggleBtn) return;
 
+    this.closeOriginalLinksModal();
+
     document.querySelectorAll('textarea[readonly], textarea#plaintext, pre:has(a[href*="fuckingfast.co"]), article:has(a[href*="fuckingfast.co"])').forEach(el => {
       el.style.display = 'none';
     });
@@ -553,6 +557,7 @@ class FitGirlDownloader {
     });
 
     this.originalLinksHidden = true;
+    toggleBtn.style.display = '';
     toggleBtn.textContent = '👁️ Show Original Links';
   }
 
@@ -560,19 +565,117 @@ class FitGirlDownloader {
     const toggleBtn = this.cachedElements.toggleLinksBtn;
     if (!toggleBtn) return;
 
-    document.querySelectorAll('textarea[readonly], textarea#plaintext, pre:has(a[href*="fuckingfast.co"]), article:has(a[href*="fuckingfast.co"])').forEach(el => {
-      el.style.display = '';
+    toggleBtn.style.display = 'none';
+    this.openOriginalLinksModal();
+    this.originalLinksHidden = false;
+  }
+
+  getOriginalDownloadLinks() {
+    const links = [];
+    const seenUrls = new Set();
+
+    document.querySelectorAll('a[href*="fuckingfast.co"]').forEach((anchor) => {
+      const url = anchor.href;
+      if (!url || seenUrls.has(url)) return;
+
+      seenUrls.add(url);
+      links.push({
+        url,
+        text: (anchor.textContent || '').trim() || this.getFilenameFromUrl(url)
+      });
     });
 
-    document.querySelectorAll('h1, h2, h3, h4, h5, h6').forEach(heading => {
-      const text = heading.textContent.toLowerCase();
-      if (text.includes('download') && text.includes('link')) {
-        heading.style.display = '';
+    return links;
+  }
+
+  openOriginalLinksModal() {
+    if (this.linksModal) {
+      return;
+    }
+
+    const links = this.getOriginalDownloadLinks();
+    const overlay = document.createElement('div');
+    overlay.className = 'fg-links-modal-overlay';
+
+    const modal = document.createElement('div');
+    modal.className = 'fg-links-modal';
+
+    const header = document.createElement('div');
+    header.className = 'fg-links-modal-header';
+    header.innerHTML = `
+      <h4>Original Download Links</h4>
+      <button class="fg-links-modal-close" type="button" aria-label="Close">x</button>
+    `;
+
+    const body = document.createElement('div');
+    body.className = 'fg-links-modal-body';
+
+    if (links.length === 0) {
+      body.innerHTML = '<p class="fg-links-modal-empty">No download links were found on this page.</p>';
+    } else {
+      const list = document.createElement('ul');
+      list.className = 'fg-links-modal-list';
+
+      links.forEach((link, index) => {
+        const li = document.createElement('li');
+        li.className = 'fg-links-modal-item';
+        li.innerHTML = `
+          <span class="fg-links-modal-index">${index + 1}.</span>
+          <a class="fg-links-modal-link" href="${this.escapeHtml(link.url)}" target="_blank" rel="noopener noreferrer">${this.escapeHtml(link.text)}</a>
+        `;
+        list.appendChild(li);
+      });
+
+      body.appendChild(list);
+    }
+
+    modal.appendChild(header);
+    modal.appendChild(body);
+    overlay.appendChild(modal);
+
+    overlay.addEventListener('click', (event) => {
+      if (event.target === overlay) {
+        this.closeOriginalLinksModal();
       }
     });
 
-    this.originalLinksHidden = false;
-    toggleBtn.textContent = '👁️ Hide Original Links';
+    const closeButton = header.querySelector('.fg-links-modal-close');
+    closeButton.addEventListener('click', () => {
+      this.closeOriginalLinksModal();
+    });
+
+    this.modalKeydownHandler = (event) => {
+      if (event.key === 'Escape' && this.linksModal) {
+        this.closeOriginalLinksModal();
+      }
+    };
+
+    document.addEventListener('keydown', this.modalKeydownHandler);
+    document.body.classList.add('fg-links-modal-open');
+    document.body.appendChild(overlay);
+    this.linksModal = overlay;
+  }
+
+  closeOriginalLinksModal() {
+    if (this.linksModal && this.linksModal.parentElement) {
+      this.linksModal.parentElement.removeChild(this.linksModal);
+    }
+    this.linksModal = null;
+
+    if (this.modalKeydownHandler) {
+      document.removeEventListener('keydown', this.modalKeydownHandler);
+      this.modalKeydownHandler = null;
+    }
+
+    this.originalLinksHidden = true;
+
+    const toggleBtn = this.cachedElements.toggleLinksBtn;
+    if (toggleBtn) {
+      toggleBtn.style.display = '';
+      toggleBtn.textContent = '👁️ Show Original Links';
+    }
+
+    document.body.classList.remove('fg-links-modal-open');
   }
 
   async downloadSingleFile(url) {
@@ -1369,6 +1472,8 @@ class FitGirlDownloader {
       clearTimeout(this.mutationProcessTimeout);
       this.mutationProcessTimeout = null;
     }
+
+    this.closeOriginalLinksModal();
 
     document.removeEventListener('visibilitychange', this.handleVisibilityChange);
     window.removeEventListener('pagehide', this.handlePageHide);
