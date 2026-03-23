@@ -47,6 +47,9 @@ class FitGirlDownloader {
     this.pageStateCache = null;
     this.pageStateLoaded = false;
 
+    // Toggle state for original links visibility
+    this.originalLinksHidden = true;
+
     // Lifecycle handlers for flushing pending writes
     this.handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden') {
@@ -258,6 +261,12 @@ class FitGirlDownloader {
             ⏹️ Stop
           </button>
         </div>
+
+        <div class="fg-control-group">
+          <button class="fg-btn fg-btn-secondary fg-toggle-links">
+            👁️ Show Original Links
+          </button>
+        </div>
         
         <div class="fg-selection-controls">
           <button class="fg-btn fg-btn-sm fg-toggle-select">
@@ -286,6 +295,7 @@ class FitGirlDownloader {
 
     await this.extractAndDisplayLinks();
     this.bindEventHandlers();
+    this.setupLinkToggle();
   }
 
   cacheElements() {
@@ -295,6 +305,7 @@ class FitGirlDownloader {
       stopBtn: document.querySelector('.fg-stop-btn'),
       toggleSelectBtn: document.querySelector('.fg-toggle-select'),
       resetBtn: document.querySelector('.fg-reset-selection'),
+      toggleLinksBtn: document.querySelector('.fg-toggle-links'),
       counterText: document.querySelector('.fg-counter-text'),
       statusText: document.querySelector('.fg-status-text'),
       progressFill: document.querySelector('.fg-progress-fill'),
@@ -365,7 +376,8 @@ class FitGirlDownloader {
       <div class="fg-file-actions">
         ${isSkipped ?
         `<button class="fg-btn fg-btn-xs fg-undo-skip" data-url="${link.url}">↩️ Undo</button>` :
-        `<button class="fg-btn fg-btn-xs fg-skip-file" data-url="${link.url}">⏭️ Skip</button>`
+        `<button class="fg-btn fg-btn-xs fg-download-file" data-url="${link.url}">⬇️ Download</button>
+         <button class="fg-btn fg-btn-xs fg-skip-file" data-url="${link.url}">⏭️ Skip</button>`
       }
       </div>
     `;
@@ -395,7 +407,10 @@ class FitGirlDownloader {
     fileList.addEventListener('click', (e) => {
       const target = e.target;
       
-      if (target.classList.contains('fg-skip-file')) {
+      if (target.classList.contains('fg-download-file')) {
+        e.stopPropagation();
+        this.downloadSingleFile(target.dataset.url);
+      } else if (target.classList.contains('fg-skip-file')) {
         e.stopPropagation();
         this.handleSkipFile(target.dataset.url);
       } else if (target.classList.contains('fg-undo-skip')) {
@@ -485,7 +500,7 @@ class FitGirlDownloader {
   }
 
   bindEventHandlers() {
-    const { startBtn, stopBtn, toggleSelectBtn, resetBtn } = this.cachedElements;
+    const { startBtn, stopBtn, toggleSelectBtn, resetBtn, toggleLinksBtn } = this.cachedElements;
 
     if (startBtn) {
       startBtn.addEventListener('click', () => this.startBulkDownload());
@@ -501,6 +516,99 @@ class FitGirlDownloader {
 
     if (resetBtn) {
       resetBtn.addEventListener('click', () => this.resetSelection());
+    }
+
+    if (toggleLinksBtn) {
+      toggleLinksBtn.addEventListener('click', () => this.toggleOriginalLinks());
+    }
+  }
+
+  setupLinkToggle() {
+    this.hideOriginalLinks();
+  }
+
+  toggleOriginalLinks() {
+    this.originalLinksHidden = !this.originalLinksHidden;
+
+    if (this.originalLinksHidden) {
+      this.hideOriginalLinks();
+    } else {
+      this.showOriginalLinks();
+    }
+  }
+
+  hideOriginalLinks() {
+    const toggleBtn = this.cachedElements.toggleLinksBtn;
+    if (!toggleBtn) return;
+
+    document.querySelectorAll('textarea[readonly], textarea#plaintext, pre:has(a[href*="fuckingfast.co"]), article:has(a[href*="fuckingfast.co"])').forEach(el => {
+      el.style.display = 'none';
+    });
+
+    document.querySelectorAll('h1, h2, h3, h4, h5, h6').forEach(heading => {
+      const text = heading.textContent.toLowerCase();
+      if (text.includes('download') && text.includes('link')) {
+        heading.style.display = 'none';
+      }
+    });
+
+    this.originalLinksHidden = true;
+    toggleBtn.textContent = '👁️ Show Original Links';
+  }
+
+  showOriginalLinks() {
+    const toggleBtn = this.cachedElements.toggleLinksBtn;
+    if (!toggleBtn) return;
+
+    document.querySelectorAll('textarea[readonly], textarea#plaintext, pre:has(a[href*="fuckingfast.co"]), article:has(a[href*="fuckingfast.co"])').forEach(el => {
+      el.style.display = '';
+    });
+
+    document.querySelectorAll('h1, h2, h3, h4, h5, h6').forEach(heading => {
+      const text = heading.textContent.toLowerCase();
+      if (text.includes('download') && text.includes('link')) {
+        heading.style.display = '';
+      }
+    });
+
+    this.originalLinksHidden = false;
+    toggleBtn.textContent = '👁️ Hide Original Links';
+  }
+
+  async downloadSingleFile(url) {
+    if (this.isProcessing) {
+      this.showNotification('⚠️ Busy', 'A download is already in progress');
+      return;
+    }
+
+    this.isProcessing = true;
+
+    const filename = this.getFilenameFromUrl(url);
+    this.updateStatus(`📥 Downloading: ${filename}...`);
+    this.setFileStatus(url, CONFIG.STATUS.PROCESSING);
+
+    try {
+      let downloadUrl = url;
+
+      if (!downloadUrl.includes('/dl/')) {
+        downloadUrl = await this.extractRealDownloadUrl(url);
+      }
+
+      if (downloadUrl) {
+        await this.initiateDownload(downloadUrl, url);
+        this.setFileStatus(url, CONFIG.STATUS.SUCCESS);
+        this.updateStatus(`✅ Downloaded: ${filename}`);
+        this.showNotification('✅ Success', `${filename} downloaded`);
+      } else {
+        throw new Error('Failed to extract download URL');
+      }
+    } catch (error) {
+      console.error(`Download failed for ${url}:`, error);
+      this.setFileStatus(url, CONFIG.STATUS.FAILED, error.message);
+      this.updateStatus(`❌ Failed: ${filename}`);
+      this.showNotification('❌ Error', error.message);
+    } finally {
+      this.isProcessing = false;
     }
   }
 
