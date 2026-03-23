@@ -26,6 +26,8 @@
 /* Keep viewport positioning reliable for fixed overlays */
 html,
 body,
+.fg-ui-modal-overlay,
+.fg-ui-modal,
 .fg-links-modal-overlay,
 .fg-links-modal {
   contain: none !important;
@@ -55,16 +57,27 @@ body,
   padding: 20px;
   margin-bottom: 20px;
   box-shadow: 0 2px 8px var(--fg-shadow);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .fg-header h3 {
-  margin: 0 0 16px 0;
+  margin: 0;
   font-size: 24px;
   font-weight: 700;
   color: var(--fg-primary);
   display: flex;
   align-items: center;
   gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+.fg-header .fg-toggle-links {
+  white-space: nowrap;
 }
 
 /* Progress Bar */
@@ -229,16 +242,19 @@ body,
   border-radius: 8px;
   padding: 16px;
   margin-bottom: 20px;
-  max-height: 600px;
+  max-height: min(56vh, 600px);
   overflow-y: auto;
   box-shadow: 0 2px 8px var(--fg-shadow);
   /* Performance: Optimize scrolling */
   contain: layout style paint;
   will-change: scroll-position;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
 .fg-file-list::-webkit-scrollbar {
-  width: 10px;
+  width: 0;
+  height: 0;
 }
 
 .fg-file-list::-webkit-scrollbar-track {
@@ -486,6 +502,129 @@ body,
   flex-direction: column;
 }
 
+/* Extension UI Modal (FitGirl pages) */
+body.fg-ui-modal-open {
+  overflow: hidden;
+}
+
+.fg-ui-trigger-btn {
+  background: linear-gradient(135deg, var(--fg-primary) 0%, var(--fg-primary-dark) 100%);
+  color: var(--fg-white);
+  border: none;
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 6px 18px var(--fg-shadow-lg);
+  transition: var(--fg-transition);
+  font-family: inherit;
+  line-height: 1.2;
+}
+
+.fg-ui-trigger-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px var(--fg-shadow-lg);
+}
+
+.fg-downloadlinks-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.fg-ui-trigger-inline {
+  position: static;
+  z-index: auto;
+  vertical-align: middle;
+}
+
+.fg-ui-trigger-floating {
+  position: fixed;
+  bottom: 24px;
+  right: 20px;
+  z-index: 10000;
+}
+
+.fg-ui-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  background: rgba(15, 23, 42, 0.7);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(8px, 2vw, 20px);
+}
+
+.fg-ui-modal-overlay.is-open {
+  display: flex;
+}
+
+.fg-ui-modal {
+  width: min(96vw, 1200px);
+  height: min(94dvh, 980px);
+  max-height: 94dvh;
+  background: var(--fg-white);
+  border-radius: 12px;
+  box-shadow: 0 20px 50px var(--fg-shadow-lg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.fg-ui-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #f8fafc;
+}
+
+.fg-ui-modal-header h4 {
+  margin: 0;
+  font-size: 16px;
+  color: var(--fg-dark);
+}
+
+.fg-ui-modal-close {
+  border: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: #e2e8f0;
+  color: var(--fg-dark);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.fg-ui-modal-close:hover {
+  background: #cbd5e1;
+}
+
+.fg-ui-modal > .fg-download-ui {
+  margin: 0;
+  border-radius: 0;
+  box-shadow: none;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.fg-ui-modal > .fg-download-ui .fg-file-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+  overflow-y: auto;
+  margin-bottom: 16px;
+}
+
 /* Original Links Modal */
 body.fg-links-modal-open {
   overflow: hidden;
@@ -664,6 +803,27 @@ body.fg-links-modal-open {
     padding: 12px;
   }
 
+  .fg-ui-modal-overlay {
+    padding: 12px;
+  }
+
+  .fg-ui-modal {
+    width: 100%;
+    height: 100dvh;
+    max-height: 100dvh;
+    border-radius: 0;
+  }
+
+  .fg-ui-trigger-btn {
+    font-size: 13px;
+    padding: 10px 14px;
+  }
+
+  .fg-ui-trigger-floating {
+    bottom: 16px;
+    right: 12px;
+  }
+
   .fg-links-modal {
     width: 100%;
     max-height: 86vh;
@@ -680,6 +840,23 @@ body.fg-links-modal-open {
   .fg-btn {
     width: 100%;
     justify-content: center;
+  }
+
+  .fg-header {
+    padding: 14px;
+  }
+
+  .fg-header h3 {
+    font-size: 20px;
+  }
+
+  .fg-controls,
+  .fg-status-panel {
+    padding: 14px;
+  }
+
+  .fg-file-list {
+    padding: 12px;
   }
 }
 

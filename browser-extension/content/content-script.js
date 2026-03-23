@@ -47,10 +47,11 @@ class FitGirlDownloader {
     this.pageStateCache = null;
     this.pageStateLoaded = false;
 
-    // Toggle state for original links visibility
-    this.originalLinksHidden = true;
-    this.linksModal = null;
-    this.modalKeydownHandler = null;
+    // Modal-first UI state for FitGirl pages
+    this.uiTriggerButton = null;
+    this.uiModalOverlay = null;
+    this.uiModalBody = null;
+    this.uiModalKeydownHandler = null;
 
     // Lifecycle handlers for flushing pending writes
     this.handleVisibilityChange = () => {
@@ -202,14 +203,11 @@ class FitGirlDownloader {
   processFitGirlPage() {
     const downloadSection = this.findDownloadSection();
     if (downloadSection) {
-      if (downloadSection.querySelector('.fg-download-ui')) {
-        return true;
-      }
-      this.createDownloadUI(downloadSection);
+      this.ensureFitGirlTriggerButton();
       return true;
     }
 
-    if (this.hasMainUI()) {
+    if (this.uiTriggerButton) {
       return true;
     }
 
@@ -252,6 +250,9 @@ class FitGirlDownloader {
     uiContainer.innerHTML = `
       <div class="fg-header">
         <h3 class="fg-title">🎮 FitGirl Downloader</h3>
+        <button class="fg-btn fg-btn-secondary fg-toggle-links">
+            ✖ Close Downloader
+        </button>
       </div>
       
       <div class="fg-controls">
@@ -262,12 +263,6 @@ class FitGirlDownloader {
           <button class="fg-btn fg-btn-danger fg-stop-btn" style="display: none;">
             ⏹️ Stop
           </button>
-          <button class="fg-btn fg-btn-secondary fg-toggle-links">
-            👁️ Show Original Links
-          </button>
-        </div>
-        
-        <div class="fg-selection-controls">
           <button class="fg-btn fg-btn-sm fg-toggle-select">
             ☑️ Select All
           </button>
@@ -286,7 +281,11 @@ class FitGirlDownloader {
       </div>
     `;
 
-    container.insertBefore(uiContainer, container.firstChild);
+    if (container.classList && container.classList.contains('fg-ui-modal')) {
+      container.appendChild(uiContainer);
+    } else {
+      container.insertBefore(uiContainer, container.firstChild);
+    }
 
     // Cache elements after insertion
     this.cacheElements();
@@ -295,6 +294,116 @@ class FitGirlDownloader {
     await this.extractAndDisplayLinks();
     this.bindEventHandlers();
     this.setupLinkToggle();
+  }
+
+  ensureFitGirlTriggerButton() {
+    let button = this.uiTriggerButton;
+
+    if (!button || !document.body.contains(button)) {
+      button = document.querySelector('.fg-ui-trigger-btn');
+    }
+
+    if (!button) {
+      button = document.createElement('button');
+      button.className = 'fg-ui-trigger-btn';
+      button.type = 'button';
+      button.textContent = '🎮 Open Downloader';
+      button.addEventListener('click', () => this.openExtensionUIModal());
+    }
+
+    const heading = document.querySelector('h2#downloadlinks');
+    if (heading) {
+      heading.classList.add('fg-downloadlinks-heading');
+      if (button.parentElement !== heading) {
+        heading.appendChild(button);
+      }
+      button.classList.remove('fg-ui-trigger-floating');
+      button.classList.add('fg-ui-trigger-inline');
+    } else {
+      if (button.parentElement !== document.body) {
+        document.body.appendChild(button);
+      }
+      button.classList.remove('fg-ui-trigger-inline');
+      button.classList.add('fg-ui-trigger-floating');
+    }
+
+    this.uiTriggerButton = button;
+  }
+
+  ensureExtensionModal() {
+    if (this.uiModalOverlay && document.body.contains(this.uiModalOverlay)) {
+      return;
+    }
+
+    const overlay = document.createElement('div');
+    overlay.className = 'fg-ui-modal-overlay';
+
+    const modal = document.createElement('div');
+    modal.className = 'fg-ui-modal';
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-label', 'FitGirl Downloader');
+
+    // const header = document.createElement('div');
+    // header.className = 'fg-ui-modal-header';
+    // header.innerHTML = `
+    //   <h4>FitGirl Downloader</h4>
+    //   <button class="fg-ui-modal-close" type="button" aria-label="Close">x</button>
+    // `;
+
+    // modal.appendChild(header);
+    overlay.appendChild(modal);
+
+    overlay.addEventListener('click', (event) => {
+      if (event.target === overlay) {
+        this.closeExtensionUIModal();
+      }
+    });
+
+    // const closeButton = header.querySelector('.fg-ui-modal-close');
+    // closeButton.addEventListener('click', () => this.closeExtensionUIModal());
+
+    if (!this.uiModalKeydownHandler) {
+      this.uiModalKeydownHandler = (event) => {
+        if (event.key === 'Escape' && this.uiModalOverlay && this.uiModalOverlay.classList.contains('is-open')) {
+          this.closeExtensionUIModal();
+        }
+      };
+      document.addEventListener('keydown', this.uiModalKeydownHandler);
+    }
+
+    document.body.appendChild(overlay);
+    this.uiModalOverlay = overlay;
+    this.uiModalBody = modal;
+  }
+
+  async openExtensionUIModal() {
+    this.ensureExtensionModal();
+    if (!this.uiModalBody) return;
+
+    const existingUI = document.querySelector('.fg-download-ui');
+    if (existingUI && existingUI.parentElement !== this.uiModalBody) {
+      this.uiModalBody.appendChild(existingUI);
+    }
+
+    if (!this.hasMainUI()) {
+      await this.createDownloadUI(this.uiModalBody);
+    } else {
+      this.cacheElements();
+      this.refreshCheckboxCache();
+      this.updateCounter();
+      this.updateToggleButton();
+    }
+
+    this.uiModalOverlay.classList.add('is-open');
+    document.body.classList.add('fg-ui-modal-open');
+  }
+
+  closeExtensionUIModal() {
+    if (this.uiModalOverlay) {
+      this.uiModalOverlay.classList.remove('is-open');
+    }
+    document.body.classList.remove('fg-ui-modal-open');
   }
 
   cacheElements() {
@@ -518,12 +627,12 @@ class FitGirlDownloader {
     }
 
     if (toggleLinksBtn) {
-      toggleLinksBtn.addEventListener('click', () => this.toggleOriginalLinks());
+      toggleLinksBtn.addEventListener('click', () => this.closeExtensionUIModal());
     }
   }
 
   setupLinkToggle() {
-    this.hideOriginalLinks();
+    // Preserve original page content; modal trigger controls extension visibility.
   }
 
   toggleOriginalLinks() {
@@ -1481,7 +1590,23 @@ class FitGirlDownloader {
       this.mutationProcessTimeout = null;
     }
 
-    this.closeOriginalLinksModal();
+    this.closeExtensionUIModal();
+
+    if (this.uiModalOverlay && this.uiModalOverlay.parentElement) {
+      this.uiModalOverlay.parentElement.removeChild(this.uiModalOverlay);
+      this.uiModalOverlay = null;
+      this.uiModalBody = null;
+    }
+
+    if (this.uiModalKeydownHandler) {
+      document.removeEventListener('keydown', this.uiModalKeydownHandler);
+      this.uiModalKeydownHandler = null;
+    }
+
+    if (this.uiTriggerButton && this.uiTriggerButton.parentElement) {
+      this.uiTriggerButton.parentElement.removeChild(this.uiTriggerButton);
+      this.uiTriggerButton = null;
+    }
 
     document.removeEventListener('visibilitychange', this.handleVisibilityChange);
     window.removeEventListener('pagehide', this.handlePageHide);
