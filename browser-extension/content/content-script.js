@@ -12,9 +12,13 @@ if (window.fitGirlDownloaderInitialized) {
 // Optimized FitGirlDownloader class with performance improvements
 
 const browserAPI = typeof browser !== 'undefined' ? browser : chrome;
+const HelpersClass = typeof FitGirlDomHelpers === 'function' ? FitGirlDomHelpers : null;
+const MutationHandlerClass = typeof FitGirlMutationHandler === 'function' ? FitGirlMutationHandler : null;
+const OriginalLinksModalClass = typeof FitGirlOriginalLinksModal === 'function' ? FitGirlOriginalLinksModal : null;
 
 class FitGirlDownloader {
   constructor() {
+    this.helpers = HelpersClass ? new HelpersClass() : null;
     this.currentPage = window.location.href;
     this.pageHash = this.hashString(this.currentPage);
     this.isProcessing = false;
@@ -34,11 +38,9 @@ class FitGirlDownloader {
     this.pendingStorageWrites = {};
     this.storageWriteTimeout = null;
     
-    // MutationObserver reference for cleanup
-    this.observer = null;
+    // Mutation handler extracted into dedicated module
+    this.mutationHandler = MutationHandlerClass ? new MutationHandlerClass(this) : null;
     this.initRetryTimeout = null;
-    this.pendingMutations = [];
-    this.mutationProcessTimeout = null;
 
     // Cache checkbox references to avoid repeated global DOM queries
     this.checkboxElements = [];
@@ -47,10 +49,8 @@ class FitGirlDownloader {
     this.pageStateCache = null;
     this.pageStateLoaded = false;
 
-    // Original links overlay state
-    this.originalLinksHidden = false;
-    this.linksModal = null;
-    this.modalKeydownHandler = null;
+    // Original links modal manager
+    this.originalLinksModal = OriginalLinksModalClass ? new OriginalLinksModalClass(this) : null;
 
     // Modal-first UI state for FitGirl pages
     this.uiMode = CONFIG.DEFAULT_UI_MODE || 'modal';
@@ -173,70 +173,21 @@ class FitGirlDownloader {
   }
 
   setupMutationObserver() {
-    // Disconnect existing observer to prevent duplicates
-    if (this.observer) {
-      this.observer.disconnect();
+    if (this.mutationHandler) {
+      this.mutationHandler.setupMutationObserver();
+      return;
     }
-
-    this.observer = new MutationObserver((mutations) => {
-      if (!this.initialized) {
-        this.tryInitialize();
-        return;
-      }
-
-      // Coalesce mutation bursts to reduce repeated scan work.
-      this.queueMutationProcessing(mutations);
-    });
-
-    this.observer.observe(document.body, {
-      childList: true,
-      subtree: true
-    });
   }
 
   queueMutationProcessing(mutations) {
-    if (!mutations || mutations.length === 0) return;
-
-    this.pendingMutations.push(...mutations);
-
-    if (this.mutationProcessTimeout) {
-      return;
+    if (this.mutationHandler) {
+      this.mutationHandler.queueMutationProcessing(mutations);
     }
-
-    this.mutationProcessTimeout = setTimeout(() => {
-      this.mutationProcessTimeout = null;
-      const batchedMutations = this.pendingMutations;
-      this.pendingMutations = [];
-
-      if ('requestIdleCallback' in window) {
-        requestIdleCallback(() => this.handleMutations(batchedMutations), { timeout: 300 });
-      } else {
-        this.handleMutations(batchedMutations);
-      }
-    }, 150);
   }
 
   handleMutations(mutations) {
-    if (this.isFitGirlPage() && this.hasMainUI()) {
-      return;
-    }
-
-    for (const mutation of mutations) {
-      for (const node of mutation.addedNodes) {
-        if (node.nodeType === 1) {
-          if (node.querySelector && (
-            node.querySelector('a[href*="fuckingfast.co"]') ||
-            node.textContent.includes('Download links') ||
-            node.id === 'plaintext'
-          )) {
-            console.log('FitGirl Downloader: New download content detected');
-            if (!this.isFitGirlPage() || !this.hasMainUI()) {
-              this.tryInitialize();
-            }
-            return; // Exit early
-          }
-        }
-      }
+    if (this.mutationHandler) {
+      this.mutationHandler.handleMutations(mutations);
     }
   }
 
@@ -665,160 +616,47 @@ class FitGirlDownloader {
   }
 
   toggleOriginalLinks() {
-    this.originalLinksHidden = !this.originalLinksHidden;
-
-    if (this.originalLinksHidden) {
-      this.hideOriginalLinks();
-    } else {
-      this.showOriginalLinks();
+    if (this.originalLinksModal) {
+      this.originalLinksModal.toggleOriginalLinks();
     }
   }
 
   updateOriginalLinksButtonText() {
-    const toggleBtn = this.cachedElements.toggleLinksBtn;
-    if (!toggleBtn) return;
-    toggleBtn.textContent = this.originalLinksHidden ?
-      '👁️ Show Original Links' :
-      '🙈 Hide Original Links';
+    if (this.originalLinksModal) {
+      this.originalLinksModal.updateOriginalLinksButtonText();
+    }
   }
 
   hideOriginalLinks() {
-    const toggleBtn = this.cachedElements.toggleLinksBtn;
-    if (!toggleBtn) return;
-
-    this.closeOriginalLinksModal();
-
-    document.querySelectorAll('textarea[readonly], textarea#plaintext, pre:has(a[href*="fuckingfast.co"]), article:has(a[href*="fuckingfast.co"])').forEach(el => {
-      el.style.display = 'none';
-    });
-
-    document.querySelectorAll('h1, h2, h3, h4, h5, h6').forEach(heading => {
-      const text = heading.textContent.toLowerCase();
-      if (text.includes('download') && text.includes('link')) {
-        heading.style.display = 'none';
-      }
-    });
-
-    this.originalLinksHidden = true;
-    this.updateOriginalLinksButtonText();
+    if (this.originalLinksModal) {
+      this.originalLinksModal.hideOriginalLinks();
+    }
   }
 
   showOriginalLinks() {
-    const toggleBtn = this.cachedElements.toggleLinksBtn;
-
-    this.originalLinksHidden = false;
-    this.openOriginalLinksModal();
-
-    if (toggleBtn) {
-      toggleBtn.style.display = 'none';
+    if (this.originalLinksModal) {
+      this.originalLinksModal.showOriginalLinks();
     }
   }
 
   getOriginalDownloadLinks() {
-    const links = [];
-    const seenUrls = new Set();
+    if (this.originalLinksModal) {
+      return this.originalLinksModal.getOriginalDownloadLinks();
+    }
 
-    document.querySelectorAll('a[href*="fuckingfast.co"]').forEach((anchor) => {
-      const url = anchor.href;
-      if (!url || seenUrls.has(url)) return;
-
-      seenUrls.add(url);
-      links.push({
-        url,
-        text: (anchor.textContent || '').trim() || this.getFilenameFromUrl(url)
-      });
-    });
-
-    return links;
+    return [];
   }
 
   openOriginalLinksModal() {
-    if (this.linksModal) {
-      return;
+    if (this.originalLinksModal) {
+      this.originalLinksModal.openOriginalLinksModal();
     }
-
-    const links = this.getOriginalDownloadLinks();
-    const overlay = document.createElement('div');
-    overlay.className = 'fg-links-modal-overlay';
-
-    const modal = document.createElement('div');
-    modal.className = 'fg-links-modal';
-
-    const header = document.createElement('div');
-    header.className = 'fg-links-modal-header';
-    header.innerHTML = `
-      <h4>Original Download Links</h4>
-      <button class="fg-links-modal-close" type="button" aria-label="Close">x</button>
-    `;
-
-    const body = document.createElement('div');
-    body.className = 'fg-links-modal-body';
-
-    if (links.length === 0) {
-      body.innerHTML = '<p class="fg-links-modal-empty">No download links were found on this page.</p>';
-    } else {
-      const list = document.createElement('ul');
-      list.className = 'fg-links-modal-list';
-
-      links.forEach((link, index) => {
-        const li = document.createElement('li');
-        li.className = 'fg-links-modal-item';
-        li.innerHTML = `
-          <span class="fg-links-modal-index">${index + 1}.</span>
-          <a class="fg-links-modal-link" href="${this.escapeHtml(link.url)}" target="_blank" rel="noopener noreferrer">${this.escapeHtml(link.text)}</a>
-        `;
-        list.appendChild(li);
-      });
-
-      body.appendChild(list);
-    }
-
-    modal.appendChild(header);
-    modal.appendChild(body);
-    overlay.appendChild(modal);
-
-    overlay.addEventListener('click', (event) => {
-      if (event.target === overlay) {
-        this.closeOriginalLinksModal();
-      }
-    });
-
-    const closeButton = header.querySelector('.fg-links-modal-close');
-    closeButton.addEventListener('click', () => {
-      this.closeOriginalLinksModal();
-    });
-
-    this.modalKeydownHandler = (event) => {
-      if (event.key === 'Escape' && this.linksModal) {
-        this.closeOriginalLinksModal();
-      }
-    };
-
-    document.addEventListener('keydown', this.modalKeydownHandler);
-    document.body.classList.add('fg-links-modal-open');
-    document.body.appendChild(overlay);
-    this.linksModal = overlay;
   }
 
   closeOriginalLinksModal() {
-    if (this.linksModal && this.linksModal.parentElement) {
-      this.linksModal.parentElement.removeChild(this.linksModal);
+    if (this.originalLinksModal) {
+      this.originalLinksModal.closeOriginalLinksModal();
     }
-    this.linksModal = null;
-
-    if (this.modalKeydownHandler) {
-      document.removeEventListener('keydown', this.modalKeydownHandler);
-      this.modalKeydownHandler = null;
-    }
-
-    this.originalLinksHidden = true;
-    const toggleBtn = this.cachedElements.toggleLinksBtn;
-    if (toggleBtn) {
-      toggleBtn.style.display = '';
-    }
-    this.updateOriginalLinksButtonText();
-
-    document.body.classList.remove('fg-links-modal-open');
   }
 
   async downloadSingleFile(url) {
@@ -1522,6 +1360,10 @@ class FitGirlDownloader {
 
   // Utility functions
   hashString(str) {
+    if (this.helpers) {
+      return this.helpers.hashString(str);
+    }
+
     let hash = 0;
     for (let i = 0; i < str.length; i++) {
       const char = str.charCodeAt(i);
@@ -1532,6 +1374,10 @@ class FitGirlDownloader {
   }
 
   getFilenameFromUrl(url) {
+    if (this.helpers) {
+      return this.helpers.getFilenameFromUrl(url);
+    }
+
     try {
       const urlObj = new URL(url);
       
@@ -1555,12 +1401,20 @@ class FitGirlDownloader {
   }
 
   generateFilename(url) {
+    if (this.helpers) {
+      return this.helpers.generateFilename(url);
+    }
+
     const timestamp = Date.now();
     const baseName = this.getFilenameFromUrl(url);
     return `fitgirl_${baseName}_${timestamp}`;
   }
 
   formatTimestamp(timestamp) {
+    if (this.helpers) {
+      return this.helpers.formatTimestamp(timestamp);
+    }
+
     const date = new Date(timestamp);
     const now = new Date();
     const diffMs = now - date;
@@ -1582,12 +1436,20 @@ class FitGirlDownloader {
   }
 
   escapeHtml(text) {
+    if (this.helpers) {
+      return this.helpers.escapeHtml(text);
+    }
+
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
   }
 
   debounce(func, wait) {
+    if (this.helpers) {
+      return this.helpers.debounce(func, wait);
+    }
+
     let timeout;
     return function executedFunction(...args) {
       const later = () => {
@@ -1600,17 +1462,23 @@ class FitGirlDownloader {
   }
 
   delay(ms) {
+    if (this.helpers) {
+      return this.helpers.delay(ms);
+    }
+
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   // Cleanup method to prevent memory leaks
   destroy() {
-    this.closeOriginalLinksModal();
+    if (this.originalLinksModal) {
+      this.originalLinksModal.destroy();
+      this.originalLinksModal = null;
+    }
 
-    // Disconnect observer
-    if (this.observer) {
-      this.observer.disconnect();
-      this.observer = null;
+    if (this.mutationHandler) {
+      this.mutationHandler.destroy();
+      this.mutationHandler = null;
     }
 
     // Clear timeouts
@@ -1622,11 +1490,6 @@ class FitGirlDownloader {
     if (this.initRetryTimeout) {
       clearTimeout(this.initRetryTimeout);
       this.initRetryTimeout = null;
-    }
-
-    if (this.mutationProcessTimeout) {
-      clearTimeout(this.mutationProcessTimeout);
-      this.mutationProcessTimeout = null;
     }
 
     if (this.modalUI) {
@@ -1646,7 +1509,7 @@ class FitGirlDownloader {
     this.cachedElements = {};
     this.fileItems = [];
     this.checkboxElements = [];
-    this.pendingMutations = [];
+    this.helpers = null;
 
     console.log('FitGirl Downloader: Cleaned up');
   }
