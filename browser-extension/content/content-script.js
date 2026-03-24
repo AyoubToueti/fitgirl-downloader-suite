@@ -109,112 +109,69 @@ class FitGirlDownloader {
   }
 
   normalizeUIMode(mode) {
-    if (this.pageUIManager) {
-      return this.pageUIManager.normalizeUIMode(mode);
-    }
-
-    return CONFIG.UI_MODES.MODAL;
+    return this.pageUIManager?.normalizeUIMode(mode) ?? CONFIG.UI_MODES.MODAL;
   }
 
   isModalMode() {
-    if (this.pageUIManager) {
-      return this.pageUIManager.isModalMode();
-    }
-
-    return this.uiMode === CONFIG.UI_MODES.MODAL;
+    return this.pageUIManager?.isModalMode() ?? (this.uiMode === CONFIG.UI_MODES.MODAL);
   }
 
   async loadUIModePreference() {
-    if (this.pageUIManager) {
-      await this.pageUIManager.loadUIModePreference();
-    }
+    if (!this.pageUIManager) return;
+    await this.pageUIManager.loadUIModePreference();
   }
 
   tryInitialize(attempt = 1) {
-    if (this.pageUIManager) {
-      this.pageUIManager.tryInitialize(attempt);
-    }
+    this.pageUIManager?.tryInitialize(attempt);
   }
 
   setupMutationObserver() {
-    if (this.mutationHandler) {
-      this.mutationHandler.setupMutationObserver();
-      return;
-    }
+    this.mutationHandler?.setupMutationObserver();
   }
 
   queueMutationProcessing(mutations) {
-    if (this.mutationHandler) {
-      this.mutationHandler.queueMutationProcessing(mutations);
-    }
+    this.mutationHandler?.queueMutationProcessing(mutations);
   }
 
   handleMutations(mutations) {
-    if (this.mutationHandler) {
-      this.mutationHandler.handleMutations(mutations);
-    }
+    this.mutationHandler?.handleMutations(mutations);
   }
 
   isFitGirlPage() {
-    if (this.pageUIManager) {
-      return this.pageUIManager.isFitGirlPage();
-    }
-
-    return window.location.hostname.includes('fitgirl-repacks.site');
+    return this.pageUIManager?.isFitGirlPage() ?? window.location.hostname.includes('fitgirl-repacks.site');
   }
 
   isFuckingFastPage() {
-    if (this.pageUIManager) {
-      return this.pageUIManager.isFuckingFastPage();
-    }
-
-    return window.location.hostname.includes('fuckingfast.co');
+    return this.pageUIManager?.isFuckingFastPage() ?? window.location.hostname.includes('fuckingfast.co');
   }
 
   processFitGirlPage() {
-    if (this.pageUIManager) {
-      return this.pageUIManager.processFitGirlPage();
-    }
-
-    return false;
+    return this.pageUIManager?.processFitGirlPage() ?? false;
   }
 
   teardownModalPresentation() {
-    if (this.pageUIManager) {
-      this.pageUIManager.teardownModalPresentation();
-    }
+    this.pageUIManager?.teardownModalPresentation();
   }
 
   ensureInlineUI(downloadSection) {
-    if (this.pageUIManager) {
-      this.pageUIManager.ensureInlineUI(downloadSection);
-    }
+    this.pageUIManager?.ensureInlineUI(downloadSection);
   }
 
   findDownloadSection() {
-    if (this.pageUIManager) {
-      return this.pageUIManager.findDownloadSection();
-    }
-
-    return null;
+    return this.pageUIManager?.findDownloadSection() ?? null;
   }
 
   async createDownloadUI(container) {
-    if (this.pageUIManager) {
-      await this.pageUIManager.createDownloadUI(container);
-    }
+    if (!this.pageUIManager) return;
+    await this.pageUIManager.createDownloadUI(container);
   }
 
   ensureFitGirlTriggerButton() {
-    if (this.pageUIManager) {
-      this.pageUIManager.ensureFitGirlTriggerButton();
-    }
+    this.pageUIManager?.ensureFitGirlTriggerButton();
   }
 
   closeExtensionUIModal() {
-    if (this.pageUIManager) {
-      this.pageUIManager.closeExtensionUIModal();
-    }
+    this.pageUIManager?.closeExtensionUIModal();
   }
 
   cacheElements() {
@@ -233,9 +190,8 @@ class FitGirlDownloader {
   }
 
   async extractAndDisplayLinks() {
-    if (this.linkListManager) {
-      await this.linkListManager.extractAndDisplayLinks();
-    }
+    if (!this.linkListManager) return;
+    await this.linkListManager.extractAndDisplayLinks();
   }
 
   refreshCheckboxCache() {
@@ -305,79 +261,53 @@ class FitGirlDownloader {
   }
 
   setupLinkToggle() {
-    if (this.pageUIManager) {
-      this.pageUIManager.setupLinkToggle();
-    }
+    this.pageUIManager?.setupLinkToggle();
   }
 
   toggleOriginalLinks() {
-    if (this.originalLinksModal) {
-      this.originalLinksModal.toggleOriginalLinks();
-    }
+    this.originalLinksModal?.toggleOriginalLinks();
   }
 
   updateOriginalLinksButtonText() {
-    if (this.originalLinksModal) {
-      this.originalLinksModal.updateOriginalLinksButtonText();
-    }
+    this.originalLinksModal?.updateOriginalLinksButtonText();
   }
 
   hideOriginalLinks() {
-    if (this.originalLinksModal) {
-      this.originalLinksModal.hideOriginalLinks();
-    }
+    this.originalLinksModal?.hideOriginalLinks();
   }
 
   showOriginalLinks() {
-    if (this.originalLinksModal) {
-      this.originalLinksModal.showOriginalLinks();
-    }
+    this.originalLinksModal?.showOriginalLinks();
   }
 
   getOriginalDownloadLinks() {
-    if (this.originalLinksModal) {
-      return this.originalLinksModal.getOriginalDownloadLinks();
-    }
-
-    return [];
+    return this.originalLinksModal?.getOriginalDownloadLinks() ?? [];
   }
 
   openOriginalLinksModal() {
-    if (this.originalLinksModal) {
-      this.originalLinksModal.openOriginalLinksModal();
-    }
+    this.originalLinksModal?.openOriginalLinksModal();
   }
 
   closeOriginalLinksModal() {
-    if (this.originalLinksModal) {
-      this.originalLinksModal.closeOriginalLinksModal();
-    }
+    this.originalLinksModal?.closeOriginalLinksModal();
   }
 
   async downloadSingleFile(url) {
-    if (this.downloadManager) {
-      await this.downloadManager.downloadSingleFile(url);
-    }
+    if (!this.downloadManager) return;
+    await this.downloadManager.downloadSingleFile(url);
   }
 
   async startBulkDownload(resumeFromIndex = null, resumeFiles = null) {
-    if (this.downloadManager) {
-      await this.downloadManager.startBulkDownload(resumeFromIndex, resumeFiles);
-    }
+    if (!this.downloadManager) return;
+    await this.downloadManager.startBulkDownload(resumeFromIndex, resumeFiles);
   }
 
   stopDownload() {
-    if (this.downloadManager) {
-      this.downloadManager.stopDownload();
-    }
+    this.downloadManager?.stopDownload();
   }
 
   getSelectedFiles() {
-    if (this.selectionManager) {
-      return this.selectionManager.getSelectedFiles();
-    }
-
-    return [];
+    return this.selectionManager?.getSelectedFiles() ?? [];
   }
 
   async extractRealDownloadUrl(pageUrl) {
@@ -397,143 +327,109 @@ class FitGirlDownloader {
   }
 
   setFileStatus(url, status, errorMessage = '') {
-    if (this.downloadManager) {
-      this.downloadManager.setFileStatus(url, status, errorMessage);
-    }
+    this.downloadManager?.setFileStatus(url, status, errorMessage);
   }
 
   async retryFile(url) {
-    if (this.downloadManager) {
-      await this.downloadManager.retryFile(url);
-    }
+    if (!this.downloadManager) return;
+    await this.downloadManager.retryFile(url);
   }
 
   async handleSkipFile(url) {
-    if (this.selectionManager) {
-      await this.selectionManager.handleSkipFile(url);
-    }
+    if (!this.selectionManager) return;
+    await this.selectionManager.handleSkipFile(url);
   }
 
   async handleUndoSkip(url) {
-    if (this.selectionManager) {
-      await this.selectionManager.handleUndoSkip(url);
-    }
+    if (!this.selectionManager) return;
+    await this.selectionManager.handleUndoSkip(url);
   }
 
   selectAll() {
-    if (this.selectionManager) {
-      this.selectionManager.selectAll();
-    }
+    this.selectionManager?.selectAll();
   }
 
   deselectAll() {
-    if (this.selectionManager) {
-      this.selectionManager.deselectAll();
-    }
+    this.selectionManager?.deselectAll();
   }
 
   toggleSelectAll() {
-    if (this.selectionManager) {
-      this.selectionManager.toggleSelectAll();
-    }
+    this.selectionManager?.toggleSelectAll();
   }
 
   updateToggleButton() {
-    if (this.selectionManager) {
-      this.selectionManager.updateToggleButton();
-    }
+    this.selectionManager?.updateToggleButton();
   }
 
   async resetSelection() {
-    if (this.selectionManager) {
-      await this.selectionManager.resetSelection();
-    }
+    if (!this.selectionManager) return;
+    await this.selectionManager.resetSelection();
   }
 
   updateCounter() {
-    if (this.feedbackManager) {
-      this.feedbackManager.updateCounter();
-    }
+    this.feedbackManager?.updateCounter();
   }
 
   updateProgress(current, total) {
-    if (this.feedbackManager) {
-      this.feedbackManager.updateProgress(current, total);
-    }
+    this.feedbackManager?.updateProgress(current, total);
   }
 
   updateStatus(message) {
-    if (this.feedbackManager) {
-      this.feedbackManager.updateStatus(message);
-    }
+    this.feedbackManager?.updateStatus(message);
   }
 
   async saveSelections() {
-    if (this.storageManager) {
-      await this.storageManager.saveSelections();
-    }
+    if (!this.storageManager) return;
+    await this.storageManager.saveSelections();
   }
 
   async saveSkippedFiles() {
-    if (this.storageManager) {
-      await this.storageManager.saveSkippedFiles();
-    }
+    if (!this.storageManager) return;
+    await this.storageManager.saveSkippedFiles();
   }
 
   async flushPendingStorageWrites(force = false) {
-    if (this.storageManager) {
-      await this.storageManager.flushPendingStorageWrites(force);
-    }
+    if (!this.storageManager) return;
+    await this.storageManager.flushPendingStorageWrites(force);
   }
 
   async loadPageState() {
-    if (this.storageManager) {
-      return this.storageManager.loadPageState();
-    }
-
-    return { selections: {}, skipped: [] };
+    return this.storageManager?.loadPageState() ?? { selections: {}, skipped: [] };
   }
 
   async savePageState(state) {
-    if (this.storageManager) {
-      await this.storageManager.savePageState(state);
-    }
+    if (!this.storageManager) return;
+    await this.storageManager.savePageState(state);
   }
 
   async savePauseState(currentIndex, files) {
-    if (this.storageManager) {
-      await this.storageManager.savePauseState(currentIndex, files);
-    }
+    if (!this.storageManager) return;
+    await this.storageManager.savePauseState(currentIndex, files);
   }
 
   async clearPauseState() {
-    if (this.storageManager) {
-      await this.storageManager.clearPauseState();
-    }
+    if (!this.storageManager) return;
+    await this.storageManager.clearPauseState();
   }
 
   async checkPauseState() {
-    if (this.storageManager) {
-      await this.storageManager.checkPauseState();
-    }
+    if (!this.storageManager) return;
+    await this.storageManager.checkPauseState();
   }
 
   async logSuccess(url) {
-    if (this.feedbackManager) {
-      await this.feedbackManager.logSuccess(url);
-    }
+    if (!this.feedbackManager) return;
+    await this.feedbackManager.logSuccess(url);
   }
 
   async logFailure(url, error) {
-    if (this.feedbackManager) {
-      await this.feedbackManager.logFailure(url, error);
-    }
+    if (!this.feedbackManager) return;
+    await this.feedbackManager.logFailure(url, error);
   }
 
   async showNotification(title, message) {
-    if (this.feedbackManager) {
-      await this.feedbackManager.showNotification(title, message);
-    }
+    if (!this.feedbackManager) return;
+    await this.feedbackManager.showNotification(title, message);
   }
 
   // Utility functions
