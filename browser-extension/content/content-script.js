@@ -11,7 +11,6 @@ if (window.fitGirlDownloaderInitialized) {
 
 // Optimized FitGirlDownloader class with performance improvements
 
-const browserAPI = typeof browser !== 'undefined' ? browser : chrome;
 const HelpersClass = typeof FitGirlDomHelpers === 'function' ? FitGirlDomHelpers : null;
 const MutationHandlerClass = typeof FitGirlMutationHandler === 'function' ? FitGirlMutationHandler : null;
 const OriginalLinksModalClass = typeof FitGirlOriginalLinksModal === 'function' ? FitGirlOriginalLinksModal : null;
@@ -19,6 +18,8 @@ const StorageManagerClass = typeof FitGirlStorageManager === 'function' ? FitGir
 const SelectionManagerClass = typeof FitGirlSelectionManager === 'function' ? FitGirlSelectionManager : null;
 const DownloadManagerClass = typeof FitGirlDownloadManager === 'function' ? FitGirlDownloadManager : null;
 const PageUIManagerClass = typeof FitGirlPageUIManager === 'function' ? FitGirlPageUIManager : null;
+const LinkListManagerClass = typeof FitGirlLinkListManager === 'function' ? FitGirlLinkListManager : null;
+const FeedbackManagerClass = typeof FitGirlFeedbackManager === 'function' ? FitGirlFeedbackManager : null;
 
 class FitGirlDownloader {
   constructor() {
@@ -42,6 +43,8 @@ class FitGirlDownloader {
     this.selectionManager = SelectionManagerClass ? new SelectionManagerClass(this) : null;
     this.downloadManager = DownloadManagerClass ? new DownloadManagerClass(this) : null;
     this.pageUIManager = PageUIManagerClass ? new PageUIManagerClass(this) : null;
+    this.linkListManager = LinkListManagerClass ? new LinkListManagerClass(this) : null;
+    this.feedbackManager = FeedbackManagerClass ? new FeedbackManagerClass(this) : null;
     
     // Mutation handler extracted into dedicated module
     this.mutationHandler = MutationHandlerClass ? new MutationHandlerClass(this) : null;
@@ -242,140 +245,23 @@ class FitGirlDownloader {
   }
 
   async extractAndDisplayLinks() {
-    const links = this.getAllDownloadLinks();
-    const fileListContainer = this.cachedElements.fileList;
-
-    if (!fileListContainer) return;
-
-    const state = await this.loadPageState();
-    const selections = state.selections || {};
-    const skippedFiles = state.skipped || [];
-
-    this.fileItems = [];
-
-    // Use DocumentFragment for better performance
-    const fragment = document.createDocumentFragment();
-
-    links.forEach((link, index) => {
-      const fileItem = this.createFileItem(link, index, selections, skippedFiles);
-      fragment.appendChild(fileItem.element);
-      this.fileItems.push(fileItem);
-    });
-
-    fileListContainer.appendChild(fragment);
-
-    this.refreshCheckboxCache();
-
-    this.updateCounter();
-    this.updateToggleButton();
-
-    // Delegate events instead of individual listeners
-    this.delegateFileItemEvents();
+    if (this.linkListManager) {
+      await this.linkListManager.extractAndDisplayLinks();
+    }
   }
 
   createFileItem(link, index, selections, skippedFiles) {
-    const fileItem = document.createElement('div');
-    fileItem.className = 'fg-file-item';
-    fileItem.dataset.url = link.url;
-    fileItem.dataset.index = index;
-
-    const isSkipped = skippedFiles.includes(link.url);
-    const isSelected = selections[link.url] !== false;
-
-    if (isSkipped) {
-      fileItem.classList.add('fg-file-skipped');
+    if (this.linkListManager) {
+      return this.linkListManager.createFileItem(link, index, selections, skippedFiles);
     }
 
-    fileItem.innerHTML = `
-      <div class="fg-file-checkbox">
-        <input type="checkbox" 
-               class="fg-checkbox" 
-               data-url="${link.url}" 
-               ${isSelected ? 'checked' : ''}
-               ${isSkipped ? 'disabled' : ''}>
-      </div>
-      <div class="fg-file-info">
-        <div class="fg-file-name">${this.escapeHtml(this.getFilenameFromUrl(link.url))}</div>
-        <div class="fg-file-url">${this.escapeHtml(link.url)}</div>
-      </div>
-      <div class="fg-file-status">
-        ${isSkipped ? '<span class="fg-badge fg-badge-skipped">Skipped</span>' : ''}
-      </div>
-      <div class="fg-file-actions">
-        ${isSkipped ?
-        `<button class="fg-btn fg-btn-xs fg-undo-skip" data-url="${link.url}">↩️ Undo</button>` :
-        `<button class="fg-btn fg-btn-xs fg-download-file" data-url="${link.url}">⬇️ Download</button>
-         <button class="fg-btn fg-btn-xs fg-skip-file" data-url="${link.url}">⏭️ Skip</button>`
-      }
-      </div>
-    `;
-
-    return {
-      element: fileItem,
-      url: link.url,
-      text: link.text,
-      index: index,
-      isSkipped: isSkipped
-    };
+    return null;
   }
 
   delegateFileItemEvents() {
-    const fileList = this.cachedElements.fileList;
-    if (!fileList || fileList.dataset.fgDelegated === 'true') {
-      return;
+    if (this.linkListManager) {
+      this.linkListManager.delegateFileItemEvents();
     }
-
-    fileList.dataset.fgDelegated = 'true';
-
-    // Single event listener for all checkboxes
-    fileList.addEventListener('change', (e) => {
-      if (e.target.classList.contains('fg-checkbox')) {
-        this.refreshCheckboxCache();
-        this.debouncedSaveSelections();
-        this.debouncedUpdateCounter();
-      }
-    });
-
-    // Single event listener for all buttons
-    fileList.addEventListener('click', (e) => {
-      const target = e.target;
-      
-      if (target.classList.contains('fg-download-file')) {
-        e.stopPropagation();
-        this.downloadSingleFile(target.dataset.url);
-      } else if (target.classList.contains('fg-skip-file')) {
-        e.stopPropagation();
-        this.handleSkipFile(target.dataset.url);
-      } else if (target.classList.contains('fg-undo-skip')) {
-        e.stopPropagation();
-        this.handleUndoSkip(target.dataset.url);
-      } else if (target.classList.contains('fg-retry-file')) {
-        e.stopPropagation();
-        this.retryFile(target.dataset.url);
-      }
-    });
-
-    // Single click handler for file items
-    fileList.addEventListener('click', (e) => {
-      const fileItem = e.target.closest('.fg-file-item');
-      if (!fileItem) return;
-
-      // Don't toggle if clicking buttons or checkboxes
-      if (e.target.tagName === 'BUTTON' ||
-          e.target.tagName === 'A' ||
-          e.target.classList.contains('fg-checkbox') ||
-          e.target.closest('button')) {
-        return;
-      }
-
-      const checkbox = fileItem.querySelector('.fg-checkbox');
-      if (checkbox && !checkbox.disabled) {
-        checkbox.checked = !checkbox.checked;
-        this.refreshCheckboxCache();
-        this.debouncedSaveSelections();
-        this.debouncedUpdateCounter();
-      }
-    });
   }
 
   refreshCheckboxCache() {
@@ -409,27 +295,11 @@ class FitGirlDownloader {
   }
 
   getAllDownloadLinks() {
-    // Use Set for automatic deduplication
-    const uniqueUrls = new Set();
-    const links = [];
-
-    // Single query, cached result
-    const linkElements = document.querySelectorAll('a[href*="fuckingfast.co"]');
-
-    for (const element of linkElements) {
-      const url = element.href;
-      if (url && !url.includes('optional') && !uniqueUrls.has(url)) {
-        uniqueUrls.add(url);
-        links.push({
-          url: url,
-          element: element,
-          text: element.textContent.trim()
-        });
-      }
+    if (this.linkListManager) {
+      return this.linkListManager.getAllDownloadLinks();
     }
 
-    console.log(`FitGirl Downloader: Found ${links.length} download links`);
-    return links;
+    return [];
   }
 
   bindEventHandlers() {
@@ -615,34 +485,20 @@ class FitGirlDownloader {
   }
 
   updateCounter() {
-    const counterText = this.cachedElements.counterText;
-    if (!counterText) return;
-
-    this.refreshCheckboxCache();
-    const total = this.fileItems.length;
-    const skipped = this.fileItems.filter(item => item.isSkipped).length;
-    const { checkedTotal } = this.getCheckboxStats();
-
-    counterText.textContent = `${checkedTotal} of ${total} files selected (${skipped} skipped)`;
+    if (this.feedbackManager) {
+      this.feedbackManager.updateCounter();
+    }
   }
 
   updateProgress(current, total) {
-    const { progressFill, progressText } = this.cachedElements;
-    const percentage = Math.round((current / total) * 100);
-
-    if (progressFill) {
-      progressFill.style.width = `${percentage}%`;
-    }
-
-    if (progressText) {
-      progressText.textContent = `${current} / ${total} files (${percentage}%)`;
+    if (this.feedbackManager) {
+      this.feedbackManager.updateProgress(current, total);
     }
   }
 
   updateStatus(message) {
-    const { statusText } = this.cachedElements;
-    if (statusText) {
-      statusText.textContent = message;
+    if (this.feedbackManager) {
+      this.feedbackManager.updateStatus(message);
     }
   }
 
@@ -727,39 +583,20 @@ class FitGirlDownloader {
   }
 
   async logSuccess(url) {
-    try {
-      await browserAPI.runtime.sendMessage({
-        action: 'updateStats',
-        type: 'success',
-        url: url
-      });
-    } catch (error) {
-      console.error('Error logging success:', error);
+    if (this.feedbackManager) {
+      await this.feedbackManager.logSuccess(url);
     }
   }
 
   async logFailure(url, error) {
-    try {
-      await browserAPI.runtime.sendMessage({
-        action: 'updateStats',
-        type: 'failure',
-        url: url,
-        error: error
-      });
-    } catch (error) {
-      console.error('Error logging failure:', error);
+    if (this.feedbackManager) {
+      await this.feedbackManager.logFailure(url, error);
     }
   }
 
   async showNotification(title, message) {
-    try {
-      await browserAPI.runtime.sendMessage({
-        action: 'showNotification',
-        title: title,
-        message: message
-      });
-    } catch (error) {
-      console.error('Error showing notification:', error);
+    if (this.feedbackManager) {
+      await this.feedbackManager.showNotification(title, message);
     }
   }
 
@@ -880,6 +717,14 @@ class FitGirlDownloader {
 
   // Cleanup method to prevent memory leaks
   destroy() {
+    if (this.feedbackManager) {
+      this.feedbackManager = null;
+    }
+
+    if (this.linkListManager) {
+      this.linkListManager = null;
+    }
+
     if (this.pageUIManager) {
       this.pageUIManager = null;
     }
