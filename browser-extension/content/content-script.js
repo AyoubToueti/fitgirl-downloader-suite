@@ -211,18 +211,6 @@ class FitGirlDownloader {
     }
   }
 
-  ensureExtensionModal() {
-    if (this.pageUIManager) {
-      this.pageUIManager.ensureExtensionModal();
-    }
-  }
-
-  async openExtensionUIModal() {
-    if (this.pageUIManager) {
-      await this.pageUIManager.openExtensionUIModal();
-    }
-  }
-
   closeExtensionUIModal() {
     if (this.pageUIManager) {
       this.pageUIManager.closeExtensionUIModal();
@@ -247,20 +235,6 @@ class FitGirlDownloader {
   async extractAndDisplayLinks() {
     if (this.linkListManager) {
       await this.linkListManager.extractAndDisplayLinks();
-    }
-  }
-
-  createFileItem(link, index, selections, skippedFiles) {
-    if (this.linkListManager) {
-      return this.linkListManager.createFileItem(link, index, selections, skippedFiles);
-    }
-
-    return null;
-  }
-
-  delegateFileItemEvents() {
-    if (this.linkListManager) {
-      this.linkListManager.delegateFileItemEvents();
     }
   }
 
@@ -292,14 +266,6 @@ class FitGirlDownloader {
     }
 
     return { enabled, checkedEnabled, checkedTotal };
-  }
-
-  getAllDownloadLinks() {
-    if (this.linkListManager) {
-      return this.linkListManager.getAllDownloadLinks();
-    }
-
-    return [];
   }
 
   bindEventHandlers() {
@@ -514,12 +480,6 @@ class FitGirlDownloader {
     }
   }
 
-  queueStorageWrite(key, value) {
-    if (this.storageManager) {
-      this.storageManager.queueStorageWrite(key, value);
-    }
-  }
-
   async flushPendingStorageWrites(force = false) {
     if (this.storageManager) {
       await this.storageManager.flushPendingStorageWrites(force);
@@ -555,30 +515,6 @@ class FitGirlDownloader {
   async checkPauseState() {
     if (this.storageManager) {
       await this.storageManager.checkPauseState();
-    }
-  }
-
-  showResumeOption(pauseState) {
-    if (this.storageManager) {
-      this.storageManager.showResumeOption(pauseState);
-    }
-  }
-
-  processFuckingFastPage() {
-    if (this.pageUIManager) {
-      this.pageUIManager.processFuckingFastPage();
-    }
-  }
-
-  addDirectDownloadButton() {
-    if (this.pageUIManager) {
-      this.pageUIManager.addDirectDownloadButton();
-    }
-  }
-
-  addExtractButton() {
-    if (this.pageUIManager) {
-      this.pageUIManager.addExtractButton();
     }
   }
 
