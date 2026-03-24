@@ -15,6 +15,8 @@ const browserAPI = typeof browser !== 'undefined' ? browser : chrome;
 const HelpersClass = typeof FitGirlDomHelpers === 'function' ? FitGirlDomHelpers : null;
 const MutationHandlerClass = typeof FitGirlMutationHandler === 'function' ? FitGirlMutationHandler : null;
 const OriginalLinksModalClass = typeof FitGirlOriginalLinksModal === 'function' ? FitGirlOriginalLinksModal : null;
+const StorageManagerClass = typeof FitGirlStorageManager === 'function' ? FitGirlStorageManager : null;
+const SelectionManagerClass = typeof FitGirlSelectionManager === 'function' ? FitGirlSelectionManager : null;
 
 class FitGirlDownloader {
   constructor() {
@@ -34,9 +36,8 @@ class FitGirlDownloader {
     this.debouncedSaveSelections = this.debounce(() => this.saveSelections(), 500);
     this.debouncedUpdateCounter = this.debounce(() => this.updateCounter(), 100);
     
-    // Batch storage operations
-    this.pendingStorageWrites = {};
-    this.storageWriteTimeout = null;
+    this.storageManager = StorageManagerClass ? new StorageManagerClass(this) : null;
+    this.selectionManager = SelectionManagerClass ? new SelectionManagerClass(this) : null;
     
     // Mutation handler extracted into dedicated module
     this.mutationHandler = MutationHandlerClass ? new MutationHandlerClass(this) : null;
@@ -44,10 +45,6 @@ class FitGirlDownloader {
 
     // Cache checkbox references to avoid repeated global DOM queries
     this.checkboxElements = [];
-
-    // Cache page state in memory to reduce storage round-trips
-    this.pageStateCache = null;
-    this.pageStateLoaded = false;
 
     // Original links modal manager
     this.originalLinksModal = OriginalLinksModalClass ? new OriginalLinksModalClass(this) : null;
@@ -815,11 +812,11 @@ class FitGirlDownloader {
   }
 
   getSelectedFiles() {
-    return this.fileItems.filter(item => {
-      if (item.isSkipped) return false;
-      const checkbox = item.element.querySelector('.fg-checkbox');
-      return checkbox && checkbox.checked;
-    });
+    if (this.selectionManager) {
+      return this.selectionManager.getSelectedFiles();
+    }
+
+    return [];
   }
 
   async extractRealDownloadUrl(pageUrl) {
@@ -939,116 +936,45 @@ class FitGirlDownloader {
   }
 
   async handleSkipFile(url) {
-    const fileItem = this.fileItems.find(item => item.url === url);
-    if (!fileItem) return;
-
-    fileItem.isSkipped = true;
-    fileItem.element.classList.add('fg-file-skipped');
-
-    const checkbox = fileItem.element.querySelector('.fg-checkbox');
-    if (checkbox) {
-      checkbox.disabled = true;
-      checkbox.checked = false;
+    if (this.selectionManager) {
+      await this.selectionManager.handleSkipFile(url);
     }
-
-    const statusContainer = fileItem.element.querySelector('.fg-file-status');
-    statusContainer.innerHTML = '<span class="fg-badge fg-badge-skipped">Skipped</span>';
-
-    const actionsContainer = fileItem.element.querySelector('.fg-file-actions');
-    actionsContainer.innerHTML = `<button class="fg-btn fg-btn-xs fg-undo-skip" data-url="${url}">↩️ Undo</button>`;
-
-    this.refreshCheckboxCache();
-    await this.saveSkippedFiles();
-    this.updateCounter();
-    this.showNotification('⏭️ Skipped', 'File marked as skipped');
   }
 
   async handleUndoSkip(url) {
-    const fileItem = this.fileItems.find(item => item.url === url);
-    if (!fileItem) return;
-
-    fileItem.isSkipped = false;
-    fileItem.element.classList.remove('fg-file-skipped');
-
-    const checkbox = fileItem.element.querySelector('.fg-checkbox');
-    if (checkbox) {
-      checkbox.disabled = false;
-      checkbox.checked = true;
+    if (this.selectionManager) {
+      await this.selectionManager.handleUndoSkip(url);
     }
-
-    const statusContainer = fileItem.element.querySelector('.fg-file-status');
-    statusContainer.innerHTML = '';
-
-    const actionsContainer = fileItem.element.querySelector('.fg-file-actions');
-    actionsContainer.innerHTML = `<button class="fg-btn fg-btn-xs fg-skip-file" data-url="${url}">⏭️ Skip</button>`;
-
-    this.refreshCheckboxCache();
-    await this.saveSkippedFiles();
-    this.debouncedSaveSelections();
-    this.updateCounter();
-    this.showNotification('↩️ Restored', 'File restored to selection');
   }
 
   selectAll() {
-    this.refreshCheckboxCache();
-    this.checkboxElements.forEach(cb => {
-      if (!cb.disabled) cb.checked = true;
-    });
-    this.debouncedSaveSelections();
-    this.updateCounter();
+    if (this.selectionManager) {
+      this.selectionManager.selectAll();
+    }
   }
 
   deselectAll() {
-    this.refreshCheckboxCache();
-    this.checkboxElements.forEach(cb => {
-      if (!cb.disabled) cb.checked = false;
-    });
-    this.debouncedSaveSelections();
-    this.updateCounter();
+    if (this.selectionManager) {
+      this.selectionManager.deselectAll();
+    }
   }
 
   toggleSelectAll() {
-    this.refreshCheckboxCache();
-    const { enabled, checkedEnabled } = this.getCheckboxStats();
-    const shouldSelectAll = checkedEnabled < enabled / 2;
-
-    this.checkboxElements.forEach(cb => {
-      if (!cb.disabled) cb.checked = shouldSelectAll;
-    });
-
-    this.debouncedSaveSelections();
-    this.updateCounter();
-    this.updateToggleButton();
+    if (this.selectionManager) {
+      this.selectionManager.toggleSelectAll();
+    }
   }
 
   updateToggleButton() {
-    const toggleBtn = this.cachedElements.toggleSelectBtn;
-    if (!toggleBtn) return;
-
-    this.refreshCheckboxCache();
-    const { enabled, checkedEnabled } = this.getCheckboxStats();
-
-    if (checkedEnabled === 0) {
-      toggleBtn.textContent = '☑️ Select All';
-    } else if (checkedEnabled === enabled) {
-      toggleBtn.textContent = '☐ Deselect All';
-    } else {
-      toggleBtn.textContent = '☑️ Select All';
+    if (this.selectionManager) {
+      this.selectionManager.updateToggleButton();
     }
   }
 
   async resetSelection() {
-    const state = await this.loadPageState();
-    state.selections = {};
-    await this.savePageState(state);
-
-    this.refreshCheckboxCache();
-    this.checkboxElements.forEach(cb => {
-      if (!cb.disabled) cb.checked = true;
-    });
-
-    this.updateCounter();
-    this.showNotification('🔄 Reset', 'Selections reset to default');
+    if (this.selectionManager) {
+      await this.selectionManager.resetSelection();
+    }
   }
 
   updateCounter() {
@@ -1084,204 +1010,65 @@ class FitGirlDownloader {
   }
 
   async saveSelections() {
-    const selections = {};
-
-    this.refreshCheckboxCache();
-    this.checkboxElements.forEach(checkbox => {
-      selections[checkbox.dataset.url] = checkbox.checked;
-    });
-
-    const state = await this.loadPageState();
-    state.selections = selections;
-
-    await this.savePageState(state);
-
-    this.updateCounter();
-    this.updateToggleButton();
+    if (this.storageManager) {
+      await this.storageManager.saveSelections();
+    }
   }
 
   async saveSkippedFiles() {
-    const skipped = this.fileItems
-      .filter(item => item.isSkipped)
-      .map(item => item.url);
-
-    const state = await this.loadPageState();
-    state.skipped = skipped;
-
-    await this.savePageState(state);
+    if (this.storageManager) {
+      await this.storageManager.saveSkippedFiles();
+    }
   }
 
   queueStorageWrite(key, value) {
-    // Queue the write
-    this.pendingStorageWrites[`page_state_${key}`] = value;
-
-    // Clear existing timeout
-    if (this.storageWriteTimeout) {
-      clearTimeout(this.storageWriteTimeout);
+    if (this.storageManager) {
+      this.storageManager.queueStorageWrite(key, value);
     }
-
-    // Batch writes after 1 second of inactivity
-    this.storageWriteTimeout = setTimeout(() => {
-      this.flushPendingStorageWrites();
-    }, 1000);
   }
 
   async flushPendingStorageWrites(force = false) {
-    if (this.storageWriteTimeout) {
-      clearTimeout(this.storageWriteTimeout);
-      this.storageWriteTimeout = null;
-    }
-
-    const writeKeys = Object.keys(this.pendingStorageWrites);
-    if (writeKeys.length === 0) {
-      return;
-    }
-
-    const writes = { ...this.pendingStorageWrites };
-    this.pendingStorageWrites = {};
-
-    try {
-      await browserAPI.runtime.sendMessage({
-        action: 'setStorage',
-        data: writes
-      });
-    } catch (error) {
-      console.error(`Error in ${force ? 'forced ' : ''}batch storage write:`, error);
-      // Restore writes for a later retry if flush fails.
-      Object.assign(this.pendingStorageWrites, writes);
+    if (this.storageManager) {
+      await this.storageManager.flushPendingStorageWrites(force);
     }
   }
 
   async loadPageState() {
-    if (this.pageStateLoaded) {
-      return this.pageStateCache;
+    if (this.storageManager) {
+      return this.storageManager.loadPageState();
     }
 
-    const storageKey = `page_state_${this.pageHash}`;
-
-    try {
-      const response = await browserAPI.runtime.sendMessage({
-        action: 'getStorage',
-        keys: [storageKey]
-      });
-
-      if (response.success) {
-        this.pageStateCache = response.data[storageKey] || { selections: {}, skipped: [] };
-        this.pageStateLoaded = true;
-        return this.pageStateCache;
-      }
-    } catch (error) {
-      console.error('Error loading page state:', error);
-    }
-
-    this.pageStateCache = { selections: {}, skipped: [] };
-    this.pageStateLoaded = true;
-    return this.pageStateCache;
+    return { selections: {}, skipped: [] };
   }
 
   async savePageState(state) {
-    this.pageStateCache = state;
-    this.pageStateLoaded = true;
-    this.queueStorageWrite(this.pageHash, state);
+    if (this.storageManager) {
+      await this.storageManager.savePageState(state);
+    }
   }
 
   async savePauseState(currentIndex, files) {
-    // Store minimal data - only URLs, not full file objects
-    const fileUrls = files.map(f => f.url);
-    
-    const pauseState = {
-      isPaused: true,
-      pausedAt: Date.now(),
-      pageUrl: this.currentPage,
-      pageHash: this.pageHash,
-      currentIndex: currentIndex,
-      totalFiles: files.length,
-      fileUrls: fileUrls  // Store only URLs
-    };
-
-    try {
-      await browserAPI.runtime.sendMessage({
-        action: 'setStorage',
-        data: { [CONFIG.STORAGE_KEYS.PAUSE_STATE]: pauseState }
-      });
-    } catch (error) {
-      console.error('Error saving pause state:', error);
+    if (this.storageManager) {
+      await this.storageManager.savePauseState(currentIndex, files);
     }
   }
 
   async clearPauseState() {
-    try {
-      await browserAPI.runtime.sendMessage({
-        action: 'setStorage',
-        data: { [CONFIG.STORAGE_KEYS.PAUSE_STATE]: null }
-      });
-    } catch (error) {
-      console.error('Error clearing pause state:', error);
+    if (this.storageManager) {
+      await this.storageManager.clearPauseState();
     }
   }
 
   async checkPauseState() {
-    try {
-      const response = await browserAPI.runtime.sendMessage({
-        action: 'getStorage',
-        keys: [CONFIG.STORAGE_KEYS.PAUSE_STATE]
-      });
-
-      if (!response.success) return;
-
-      const pauseState = response.data[CONFIG.STORAGE_KEYS.PAUSE_STATE];
-
-      if (pauseState && pauseState.isPaused) {
-        if (this.isPauseExpired(pauseState.pausedAt)) {
-          await this.clearPauseState();
-          return;
-        }
-
-        if (pauseState.pageHash === this.pageHash) {
-          this.showResumeOption(pauseState);
-        }
-      }
-    } catch (error) {
-      console.error('Error checking pause state:', error);
+    if (this.storageManager) {
+      await this.storageManager.checkPauseState();
     }
   }
 
   showResumeOption(pauseState) {
-    const banner = document.createElement('div');
-    banner.className = 'fg-resume-banner';
-    banner.innerHTML = `
-      <div class="fg-resume-content">
-        <div class="fg-resume-icon">⏸️</div>
-        <div class="fg-resume-info">
-          <strong>Download Paused</strong>
-          <p>Resume from file ${pauseState.currentIndex + 1} of ${pauseState.totalFiles} 
-             (${this.formatTimestamp(pauseState.pausedAt)})</p>
-        </div>
-        <div class="fg-resume-actions">
-          <button class="fg-btn fg-btn-primary fg-resume-btn">▶️ Resume</button>
-          <button class="fg-btn fg-btn-secondary fg-discard-btn">❌ Discard</button>
-        </div>
-      </div>
-    `;
-
-    document.body.appendChild(banner);
-
-    banner.querySelector('.fg-resume-btn').addEventListener('click', async () => {
-      banner.remove();
-      
-      // Reconstruct file objects from URLs
-      const resumeFiles = pauseState.fileUrls.map(url => {
-        const item = this.fileItems.find(f => f.url === url);
-        return item || { url: url, text: this.getFilenameFromUrl(url) };
-      });
-      
-      await this.startBulkDownload(pauseState.currentIndex, resumeFiles);
-    });
-
-    banner.querySelector('.fg-discard-btn').addEventListener('click', async () => {
-      banner.remove();
-      await this.clearPauseState();
-    });
+    if (this.storageManager) {
+      this.storageManager.showResumeOption(pauseState);
+    }
   }
 
   processFuckingFastPage() {
@@ -1431,6 +1218,10 @@ class FitGirlDownloader {
   }
 
   isPauseExpired(pausedAt) {
+    if (this.storageManager) {
+      return this.storageManager.isPauseExpired(pausedAt);
+    }
+
     const now = Date.now();
     return (now - pausedAt) > CONFIG.PAUSE_EXPIRATION_TIME;
   }
@@ -1471,6 +1262,15 @@ class FitGirlDownloader {
 
   // Cleanup method to prevent memory leaks
   destroy() {
+    if (this.selectionManager) {
+      this.selectionManager = null;
+    }
+
+    if (this.storageManager) {
+      this.storageManager.destroy();
+      this.storageManager = null;
+    }
+
     if (this.originalLinksModal) {
       this.originalLinksModal.destroy();
       this.originalLinksModal = null;
@@ -1480,12 +1280,6 @@ class FitGirlDownloader {
       this.mutationHandler.destroy();
       this.mutationHandler = null;
     }
-
-    // Clear timeouts
-    if (this.storageWriteTimeout) {
-      clearTimeout(this.storageWriteTimeout);
-    }
-    this.flushPendingStorageWrites(true);
 
     if (this.initRetryTimeout) {
       clearTimeout(this.initRetryTimeout);
