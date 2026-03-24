@@ -23,6 +23,8 @@ All tools:
 
 ### 1. [`browser-extension`](./browser-extension/) ⭐ **NEW!**
 A **native browser extension** (Chrome/Edge) with advanced features:
+- **🧭 Dual UI Modes**: Switch between Modal UI and Inline UI from popup settings
+- **🔄 Instant Apply**: Changing UI mode auto-reloads the active tab
 - **⏹️ Stop & Resume**: Pause downloads and resume later (1-hour window)
 - **📋 File Selection**: Checkboxes to select/deselect specific files
 - **⏭️ Skip Functionality**: Skip unwanted files with undo option

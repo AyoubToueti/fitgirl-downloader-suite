@@ -5,12 +5,14 @@ A powerful browser extension for automating downloads from FitGirl Repacks with 
 ## 🌟 Features
 
 ### ⏹️ Stop & Pause
+
 - **Stop Button**: Appears when download starts (fixed position, top-right)
 - **Smart Pause**: Stops after current file finishes to prevent corruption
 - **Auto-Resume**: Resume downloads from where you left off (with 1-hour expiration)
 - **Visual Feedback**: Shows "Stopping..." status and disables button during pause
 
 ### 📋 File Selection System
+
 - **Individual Checkboxes**: Select/deselect specific files to download
 - **Bulk Actions**: Select All / Deselect All / Reset Selections buttons
 - **Live Counter**: Shows "X of Y files selected (Z skipped)"
@@ -18,12 +20,14 @@ A powerful browser extension for automating downloads from FitGirl Repacks with 
 - **Smart Defaults**: Respects skipped files (disabled checkboxes)
 
 ### ⏭️ Skip Functionality
+
 - **Skip Individual Files**: Skip button on each file item
 - **Undo Skip**: Reverse skip decision with one click
 - **Persistent State**: Skipped files persist across page reloads
 - **Visual Feedback**: Gray styling with strike-through text
 
 ### 🔄 Comprehensive Retry System
+
 - **Retry All Failed**: Bulk retry button in control panel
 - **Individual Retry**: Retry button on each failed file item
 - **Dual Feedback**: File item badge + control panel status
@@ -31,6 +35,7 @@ A powerful browser extension for automating downloads from FitGirl Repacks with 
 - **Persistent Failures**: Failed files persist across page reloads
 
 ### 🎨 Modern UI
+
 - **Card-Based Layout**: Clean, modern file list design
 - **Color-Coded Badges**:
   - 🟡 Yellow: Processing
@@ -42,7 +47,21 @@ A powerful browser extension for automating downloads from FitGirl Repacks with 
 - **Progress Bar**: Real-time progress with percentage
 - **Hover Effects**: Interactive cards with elevation on hover
 
+### 🧭 Rendering Modes (Modal / Inline)
+
+- **Two UI Modes**:
+   - **Modal UI** (recommended): Opens the downloader in a centered overlay
+   - **Inline UI** (classic): Renders downloader directly on the page
+- **Popup Mode Switcher**: Change mode from extension popup settings
+- **Auto Page Reload**: When mode changes, the active tab reloads automatically so the new mode applies immediately
+- **Inline Original Links Overlay**:
+   - Original page links remain hidden under extension UI
+   - "Show Original Links" opens a centered, scrollable overlay list
+   - Overlay closes via close button, backdrop click, or Escape key
+   - Toggle button is hidden while overlay is open and shown again after close
+
 ### 📊 Enhanced Popup
+
 - **Statistics Dashboard**: Total, successful, and failed download counts
 - **Progress Tracking**: Live progress bar with current/total files
 - **Pause State Indicator**: Shows paused downloads with timestamp
@@ -55,21 +74,22 @@ A powerful browser extension for automating downloads from FitGirl Repacks with 
 ### Chrome/Edge (Manifest V3)
 
 1. **Download the Extension**
+
    ```bash
    cd fitgirl-downloader-suite/browser-extension
    ```
-
 2. **Add Icons** (Important!)
+
    - Add `icon16.png`, `icon48.png`, and `icon128.png` to the `icons/` folder
    - See `icons/README.md` for resources
-
 3. **Load in Browser**
+
    - Open Chrome/Edge and navigate to `chrome://extensions/`
    - Enable "Developer mode" (toggle in top-right)
    - Click "Load unpacked"
    - Select the `browser-extension` folder
-
 4. **Verify Installation**
+
    - Extension icon should appear in toolbar
    - Visit a FitGirl Repacks download page to test
 
@@ -96,6 +116,7 @@ Firefox support requires a Manifest V2 version. A separate build will be provide
 ### Advanced Features
 
 #### Pause & Resume
+
 ```
 1. Click "⏹️ Stop" during download
 2. Extension saves current progress
@@ -105,6 +126,7 @@ Firefox support requires a Manifest V2 version. A separate build will be provide
 ```
 
 #### Skip Files
+
 ```
 1. Click "⏭️ Skip" on any file
 2. File turns gray and checkbox disables
@@ -113,6 +135,7 @@ Firefox support requires a Manifest V2 version. A separate build will be provide
 ```
 
 #### Retry Failed Downloads
+
 ```
 Option 1: Individual Retry
 - Click "🔄 Retry" button on failed file
@@ -126,11 +149,13 @@ Option 2: Bulk Retry
 ### Popup Controls
 
 Click the extension icon in toolbar to:
+
 - **View Statistics**: Total, successful, failed downloads
 - **Check Pause State**: See if any download is paused
 - **Retry Failed**: Bulk retry all failed downloads
 - **View Failed List**: See detailed error messages
 - **Clear Logs**: Reset all statistics (requires confirmation)
+- **Rendering Mode**: Switch between Modal and Inline modes from settings (tab auto-reloads)
 
 ## 🔧 Configuration
 
@@ -196,28 +221,34 @@ browser-extension/
 ## 🐛 Troubleshooting
 
 ### Extension Not Detecting Links
+
 - **Cause**: Page loaded before extension initialized
 - **Solution**: Refresh the page (F5) or wait a few seconds
 
 ### Downloads Not Starting
+
 - **Cause**: Browser download permissions not granted
 - **Solution**: Check browser settings → Downloads → Allow automatic downloads
 
 ### Pause State Not Restoring
+
 - **Cause**: Pause expired (>1 hour) or different page
 - **Solution**: Pause state is page-specific and expires after 1 hour
 
 ### Failed Downloads Not Retrying
+
 - **Cause**: Content script needs to be on the download page
 - **Solution**: Navigate to the original FitGirl page, then retry
 
 ### Stop Button Not Working
+
 - **Cause**: Current file must finish first (prevents corruption)
 - **Solution**: Wait for current file to complete, then it will stop
 
 ## 🛠️ Development
 
 ### Prerequisites
+
 - Chrome/Edge browser (version 88+)
 - Text editor (VS Code recommended)
 - Basic JavaScript knowledge
@@ -251,27 +282,10 @@ chrome.storage.local.clear();
 
 ## 📝 Known Limitations
 
-1. **FDM Integration**: Uses browser's default download handler (FDM must be set as default)
-2. **Cross-Origin**: Can only access specified domains in manifest
-3. **Service Worker**: May go inactive after 30 seconds (auto-restarts on message)
-4. **Pause Expiration**: Paused downloads expire after 1 hour
-5. **Manifest V3**: Chrome/Edge only (Firefox requires separate MV2 build)
-
-## 🔄 Migration from Tampermonkey
-
-| Feature | Tampermonkey | Extension |
-|---------|-------------|-----------|
-| Installation | Requires Tampermonkey | Native extension |
-| Permissions | Auto-granted | User must approve |
-| Storage | Synchronous | Async (Promise-based) |
-| Downloads | `GM_download` (limited) | `chrome.downloads` (full API) |
-| UI | DOM injection only | Popup + Page injection |
-| Updates | Manual | Auto-update (if published) |
-
-
-## 📄 License
-
-MIT License - See main project README
+1. **Cross-Origin**: Can only access specified domains in manifest
+2. **Service Worker**: May go inactive after 30 seconds (auto-restarts on message)
+3. **Pause Expiration**: Paused downloads expire after 1 hour
+4. **Manifest V3**: Chrome/Edge only (Firefox requires separate MV2 build)
 
 ## 🙏 Credits
 
@@ -279,6 +293,7 @@ MIT License - See main project README
 - Chrome Extension API documentation
 
 ## 🔗 Related Projects
+
 - **Main Repository**: [fitgirl-downloader-suite](../)
 - **Browser Automation**: [../browser-automation/](../browser-automation/)
 - **Tampermonkey Script**: [../tampermonkey-script/](../tampermonkey-script/)
