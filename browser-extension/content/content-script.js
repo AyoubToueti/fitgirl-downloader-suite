@@ -179,7 +179,8 @@ class FitGirlDownloader {
       fileList: document.querySelector('.fg-file-list'),
       startBtn: document.querySelector('.fg-start-btn'),
       stopBtn: document.querySelector('.fg-stop-btn'),
-      toggleSelectBtn: document.querySelector('.fg-toggle-select'),
+      toggleSelectCheckbox: document.querySelector('.fg-toggle-select-checkbox'),
+      toggleSelectText: document.querySelector('.fg-toggle-select-text'),
       resetBtn: document.querySelector('.fg-reset-selection'),
       toggleLinksBtn: document.querySelector('.fg-toggle-links'),
       counterText: document.querySelector('.fg-counter-text'),
@@ -225,7 +226,7 @@ class FitGirlDownloader {
   }
 
   bindEventHandlers() {
-    const { startBtn, stopBtn, toggleSelectBtn, resetBtn, toggleLinksBtn } = this.cachedElements;
+    const { startBtn, stopBtn, toggleSelectCheckbox, resetBtn, toggleLinksBtn } = this.cachedElements;
 
     if (startBtn && startBtn.dataset.fgBoundStart !== 'true') {
       startBtn.addEventListener('click', () => this.startBulkDownload());
@@ -237,9 +238,9 @@ class FitGirlDownloader {
       stopBtn.dataset.fgBoundStop = 'true';
     }
 
-    if (toggleSelectBtn && toggleSelectBtn.dataset.fgBoundToggleSelect !== 'true') {
-      toggleSelectBtn.addEventListener('click', () => this.toggleSelectAll());
-      toggleSelectBtn.dataset.fgBoundToggleSelect = 'true';
+    if (toggleSelectCheckbox && toggleSelectCheckbox.dataset.fgBoundToggleSelect !== 'true') {
+      toggleSelectCheckbox.addEventListener('change', () => this.toggleSelectAll(toggleSelectCheckbox.checked));
+      toggleSelectCheckbox.dataset.fgBoundToggleSelect = 'true';
     }
 
     if (resetBtn && resetBtn.dataset.fgBoundReset !== 'true') {

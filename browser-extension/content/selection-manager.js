@@ -36,6 +36,7 @@ class FitGirlSelectionManager {
     this.downloader.refreshCheckboxCache();
     await this.downloader.saveSkippedFiles();
     this.downloader.updateCounter();
+    this.downloader.updateToggleButton();
     this.downloader.showNotification('⏭️ Skipped', 'File marked as skipped');
   }
 
@@ -56,12 +57,16 @@ class FitGirlSelectionManager {
     statusContainer.innerHTML = '';
 
     const actionsContainer = fileItem.element.querySelector('.fg-file-actions');
-    actionsContainer.innerHTML = `<button class="fg-btn fg-btn-xs fg-skip-file" data-url="${url}">⏭️ Skip</button>`;
+    actionsContainer.innerHTML = `
+      <button class="fg-btn fg-btn-xs fg-download-file" data-url="${url}">⬇️ Download</button>
+      <button class="fg-btn fg-btn-xs fg-skip-file" data-url="${url}">⏭️ Skip</button>
+    `;
 
     this.downloader.refreshCheckboxCache();
     await this.downloader.saveSkippedFiles();
     this.downloader.debouncedSaveSelections();
     this.downloader.updateCounter();
+    this.downloader.updateToggleButton();
     this.downloader.showNotification('↩️ Restored', 'File restored to selection');
   }
 
@@ -72,6 +77,7 @@ class FitGirlSelectionManager {
     });
     this.downloader.debouncedSaveSelections();
     this.downloader.updateCounter();
+    this.downloader.updateToggleButton();
   }
 
   deselectAll() {
@@ -81,12 +87,20 @@ class FitGirlSelectionManager {
     });
     this.downloader.debouncedSaveSelections();
     this.downloader.updateCounter();
+    this.downloader.updateToggleButton();
   }
 
-  toggleSelectAll() {
+  toggleSelectAll(forceSelectAll = null) {
     this.downloader.refreshCheckboxCache();
     const { enabled, checkedEnabled } = this.downloader.getCheckboxStats();
-    const shouldSelectAll = checkedEnabled < enabled / 2;
+    const shouldSelectAll = typeof forceSelectAll === 'boolean'
+      ? forceSelectAll
+      : checkedEnabled !== enabled;
+
+    if (enabled === 0) {
+      this.updateToggleButton();
+      return;
+    }
 
     this.downloader.checkboxElements.forEach((cb) => {
       if (!cb.disabled) cb.checked = shouldSelectAll;
@@ -98,18 +112,28 @@ class FitGirlSelectionManager {
   }
 
   updateToggleButton() {
-    const toggleBtn = this.downloader.cachedElements.toggleSelectBtn;
-    if (!toggleBtn) return;
+    const toggleCheckbox = this.downloader.cachedElements.toggleSelectCheckbox;
+    const toggleText = this.downloader.cachedElements.toggleSelectText;
+    if (!toggleCheckbox) return;
 
     this.downloader.refreshCheckboxCache();
     const { enabled, checkedEnabled } = this.downloader.getCheckboxStats();
 
-    if (checkedEnabled === 0) {
-      toggleBtn.textContent = '☑️ Select All';
-    } else if (checkedEnabled === enabled) {
-      toggleBtn.textContent = '☐ Deselect All';
-    } else {
-      toggleBtn.textContent = '☑️ Select All';
+    if (enabled === 0) {
+      toggleCheckbox.checked = false;
+      toggleCheckbox.indeterminate = false;
+      toggleCheckbox.disabled = true;
+      if (toggleText) {
+        toggleText.textContent = 'Select All';
+      }
+      return;
+    }
+
+    toggleCheckbox.disabled = false;
+    toggleCheckbox.checked = checkedEnabled === enabled;
+    toggleCheckbox.indeterminate = checkedEnabled > 0 && checkedEnabled < enabled;
+    if (toggleText) {
+      toggleText.textContent = checkedEnabled > 0 ? 'Deselect All' : 'Select All';
     }
   }
 
@@ -124,6 +148,7 @@ class FitGirlSelectionManager {
     });
 
     this.downloader.updateCounter();
+    this.downloader.updateToggleButton();
     this.downloader.showNotification('🔄 Reset', 'Selections reset to default');
   }
 }

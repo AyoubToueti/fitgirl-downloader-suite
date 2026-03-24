@@ -95,6 +95,7 @@ class FitGirlLinkListManager {
         this.downloader.refreshCheckboxCache();
         this.downloader.debouncedSaveSelections();
         this.downloader.debouncedUpdateCounter();
+        this.downloader.updateToggleButton();
       }
     });
 
@@ -135,6 +136,7 @@ class FitGirlLinkListManager {
         this.downloader.refreshCheckboxCache();
         this.downloader.debouncedSaveSelections();
         this.downloader.debouncedUpdateCounter();
+        this.downloader.updateToggleButton();
       }
     });
   }

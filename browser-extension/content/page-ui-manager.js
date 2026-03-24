@@ -190,9 +190,10 @@ class FitGirlPageUIManager {
           <button class="fg-btn fg-btn-danger fg-stop-btn" style="display: none;">
             ⏹️ Stop
           </button>
-          <button class="fg-btn fg-btn-sm fg-toggle-select">
-            ☑️ Select All
-          </button>
+          <label class="fg-btn fg-btn-sm fg-toggle-select-control" title="Toggle all selectable files">
+            <input type="checkbox" class="fg-toggle-select-checkbox" aria-label="Toggle all files">
+            <span class="fg-toggle-select-text">Select All</span>
+          </label>
           <button class="fg-btn fg-btn-sm fg-reset-selection">Reset</button>
         </div>
 
