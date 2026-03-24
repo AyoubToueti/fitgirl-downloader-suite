@@ -17,6 +17,7 @@ const MutationHandlerClass = typeof FitGirlMutationHandler === 'function' ? FitG
 const OriginalLinksModalClass = typeof FitGirlOriginalLinksModal === 'function' ? FitGirlOriginalLinksModal : null;
 const StorageManagerClass = typeof FitGirlStorageManager === 'function' ? FitGirlStorageManager : null;
 const SelectionManagerClass = typeof FitGirlSelectionManager === 'function' ? FitGirlSelectionManager : null;
+const DownloadManagerClass = typeof FitGirlDownloadManager === 'function' ? FitGirlDownloadManager : null;
 
 class FitGirlDownloader {
   constructor() {
@@ -38,6 +39,7 @@ class FitGirlDownloader {
     
     this.storageManager = StorageManagerClass ? new StorageManagerClass(this) : null;
     this.selectionManager = SelectionManagerClass ? new SelectionManagerClass(this) : null;
+    this.downloadManager = DownloadManagerClass ? new DownloadManagerClass(this) : null;
     
     // Mutation handler extracted into dedicated module
     this.mutationHandler = MutationHandlerClass ? new MutationHandlerClass(this) : null;
@@ -657,157 +659,20 @@ class FitGirlDownloader {
   }
 
   async downloadSingleFile(url) {
-    if (this.isProcessing) {
-      this.showNotification('⚠️ Busy', 'A download is already in progress');
-      return;
-    }
-
-    this.isProcessing = true;
-
-    const filename = this.getFilenameFromUrl(url);
-    this.updateStatus(`📥 Downloading: ${filename}...`);
-    this.setFileStatus(url, CONFIG.STATUS.PROCESSING);
-
-    try {
-      let downloadUrl = url;
-
-      if (!downloadUrl.includes('/dl/')) {
-        downloadUrl = await this.extractRealDownloadUrl(url);
-      }
-
-      if (downloadUrl) {
-        await this.initiateDownload(downloadUrl, url);
-        this.setFileStatus(url, CONFIG.STATUS.SUCCESS);
-        this.updateStatus(`✅ Downloaded: ${filename}`);
-        this.showNotification('✅ Success', `${filename} downloaded`);
-      } else {
-        throw new Error('Failed to extract download URL');
-      }
-    } catch (error) {
-      console.error(`Download failed for ${url}:`, error);
-      this.setFileStatus(url, CONFIG.STATUS.FAILED, error.message);
-      this.updateStatus(`❌ Failed: ${filename}`);
-      this.showNotification('❌ Error', error.message);
-    } finally {
-      this.isProcessing = false;
+    if (this.downloadManager) {
+      await this.downloadManager.downloadSingleFile(url);
     }
   }
 
   async startBulkDownload(resumeFromIndex = null, resumeFiles = null) {
-    if (this.isProcessing) {
-      this.showNotification('⚠️ Busy', 'Download process already running');
-      return;
-    }
-
-    const selectedFiles = resumeFiles || this.getSelectedFiles();
-
-    if (selectedFiles.length === 0) {
-      this.showNotification('❌ No Files', 'No files selected for download');
-      return;
-    }
-
-    this.isProcessing = true;
-    this.shouldStop = false;
-    this.currentIndex = resumeFromIndex !== null ? resumeFromIndex : 0;
-
-    const { startBtn, stopBtn } = this.cachedElements;
-    startBtn.style.display = 'none';
-    stopBtn.style.display = 'block';
-
-    this.updateStatus(`📥 Starting download of ${selectedFiles.length} files...`);
-
-    let success = 0;
-    let failures = 0;
-    let consecutiveFailures = 0;
-
-    // Get completed files once
-    const completedResponse = await browserAPI.runtime.sendMessage({
-      action: 'getStorage',
-      keys: [CONFIG.STORAGE_KEYS.COMPLETED_URLS]
-    });
-    const completedUrls = new Set(completedResponse.success ? 
-      completedResponse.data[CONFIG.STORAGE_KEYS.COMPLETED_URLS] || [] : []);
-
-    for (let i = this.currentIndex; i < selectedFiles.length; i++) {
-      if (this.shouldStop) {
-        await this.savePauseState(i, selectedFiles);
-        this.updateStatus('⏸️ Paused');
-        this.showNotification('⏸️ Paused', 'Download paused. You can resume later.');
-        break;
-      }
-
-      const file = selectedFiles[i];
-      this.currentIndex = i;
-
-      if (completedUrls.has(file.url)) {
-        this.updateStatus(`[✓] Skipping already downloaded: ${this.getFilenameFromUrl(file.url)}`);
-        this.setFileStatus(file.url, CONFIG.STATUS.COMPLETED);
-        continue;
-      }
-
-      this.updateProgress(i + 1, selectedFiles.length);
-      this.updateStatus(`[${i + 1}/${selectedFiles.length}] Processing: ${this.getFilenameFromUrl(file.url)}`);
-      this.setFileStatus(file.url, CONFIG.STATUS.PROCESSING);
-
-      try {
-        let downloadUrl = file.url;
-
-        if (!downloadUrl.includes('/dl/')) {
-          downloadUrl = await this.extractRealDownloadUrl(file.url);
-        }
-
-        if (downloadUrl) {
-          await this.initiateDownload(downloadUrl, file.url);
-          this.setFileStatus(file.url, CONFIG.STATUS.SUCCESS);
-          success++;
-          consecutiveFailures = 0;
-        } else {
-          throw new Error('Failed to extract download URL');
-        }
-      } catch (error) {
-        console.error(`Download failed for ${file.url}:`, error);
-        this.setFileStatus(file.url, CONFIG.STATUS.FAILED, error.message);
-        await this.logFailure(file.url, error.message);
-        failures++;
-        consecutiveFailures++;
-
-        if (consecutiveFailures >= CONFIG.CONSECUTIVE_FAILURES_THRESHOLD) {
-          this.updateStatus('⚠️ Too many consecutive failures. Pausing...');
-          await this.savePauseState(i + 1, selectedFiles);
-          this.showNotification('⚠️ Paused', `${consecutiveFailures} consecutive failures. Please check your connection.`);
-          break;
-        }
-      }
-
-      if (i < selectedFiles.length - 1) {
-        await this.delay(CONFIG.WAIT_BETWEEN);
-      }
-    }
-
-    this.isProcessing = false;
-
-    const { startBtn: sb, stopBtn: stb } = this.cachedElements;
-    sb.style.display = 'block';
-    stb.style.display = 'none';
-
-    if (!this.shouldStop) {
-      await this.clearPauseState();
-      this.updateStatus(`✅ Complete: ${success} successful, ${failures} failed`);
-      this.showNotification('📊 Download Complete', 
-        `Processed ${selectedFiles.length} files: ${success} successful, ${failures} failed`);
+    if (this.downloadManager) {
+      await this.downloadManager.startBulkDownload(resumeFromIndex, resumeFiles);
     }
   }
 
   stopDownload() {
-    if (!this.isProcessing) return;
-    
-    this.shouldStop = true;
-    this.updateStatus('⏹️ Stopping after current file...');
-    
-    const { stopBtn } = this.cachedElements;
-    if (stopBtn) {
-      stopBtn.disabled = true;
-      stopBtn.textContent = '⏹️ Stopping...';
+    if (this.downloadManager) {
+      this.downloadManager.stopDownload();
     }
   }
 
@@ -820,118 +685,30 @@ class FitGirlDownloader {
   }
 
   async extractRealDownloadUrl(pageUrl) {
-    try {
-      const response = await browserAPI.runtime.sendMessage({
-        action: 'extractDownloadUrl',
-        url: pageUrl
-      });
-
-      if (response.success) {
-        return response.downloadUrl;
-      } else {
-        throw new Error(response.error || 'Extraction failed');
-      }
-    } catch (error) {
-      throw error;
+    if (this.downloadManager) {
+      return this.downloadManager.extractRealDownloadUrl(pageUrl);
     }
+
+    throw new Error('Download manager unavailable');
   }
 
   async initiateDownload(downloadUrl, originalUrl) {
-    try {
-      const filename = this.generateFilename(downloadUrl);
-
-      const response = await browserAPI.runtime.sendMessage({
-        action: 'download',
-        url: downloadUrl,
-        filename: filename
-      });
-
-      if (response.success) {
-        await this.logSuccess(originalUrl);
-      } else {
-        throw new Error(response.error || 'Download failed');
-      }
-    } catch (error) {
-      throw error;
+    if (this.downloadManager) {
+      return this.downloadManager.initiateDownload(downloadUrl, originalUrl);
     }
+
+    throw new Error('Download manager unavailable');
   }
 
   setFileStatus(url, status, errorMessage = '') {
-    const fileItem = this.fileItems.find(item => item.url === url);
-    if (!fileItem) return;
-
-    const statusContainer = fileItem.element.querySelector('.fg-file-status');
-    const actionsContainer = fileItem.element.querySelector('.fg-file-actions');
-
-    if (!statusContainer || !actionsContainer) return;
-
-    // Clear existing content
-    statusContainer.innerHTML = '';
-    actionsContainer.innerHTML = '';
-
-    const badge = document.createElement('span');
-    badge.className = `fg-badge fg-badge-${status}`;
-
-    const statusIcons = {
-      [CONFIG.STATUS.PROCESSING]: '⏳',
-      [CONFIG.STATUS.SUCCESS]: '✅',
-      [CONFIG.STATUS.FAILED]: '❌',
-      [CONFIG.STATUS.COMPLETED]: '✓',
-      [CONFIG.STATUS.RETRYING]: '🔄',
-      [CONFIG.STATUS.SKIPPED]: '⏭️'
-    };
-
-    const statusTexts = {
-      [CONFIG.STATUS.PROCESSING]: 'Processing',
-      [CONFIG.STATUS.SUCCESS]: 'Success',
-      [CONFIG.STATUS.FAILED]: 'Failed',
-      [CONFIG.STATUS.COMPLETED]: 'Completed',
-      [CONFIG.STATUS.RETRYING]: 'Retrying',
-      [CONFIG.STATUS.SKIPPED]: 'Skipped'
-    };
-
-    badge.textContent = `${statusIcons[status]} ${statusTexts[status]}`;
-
-    if (errorMessage) {
-      badge.title = errorMessage;
-    }
-
-    statusContainer.appendChild(badge);
-
-    if (status === CONFIG.STATUS.FAILED) {
-      const retryBtn = document.createElement('button');
-      retryBtn.className = 'fg-btn fg-btn-xs fg-retry-file';
-      retryBtn.textContent = '🔄 Retry';
-      retryBtn.dataset.url = url;
-      actionsContainer.appendChild(retryBtn);
+    if (this.downloadManager) {
+      this.downloadManager.setFileStatus(url, status, errorMessage);
     }
   }
 
   async retryFile(url) {
-    const fileItem = this.fileItems.find(item => item.url === url);
-    if (!fileItem) return;
-
-    this.setFileStatus(url, CONFIG.STATUS.RETRYING);
-    this.updateStatus(`🔄 Retrying: ${this.getFilenameFromUrl(url)}`);
-
-    try {
-      let downloadUrl = url;
-
-      if (!downloadUrl.includes('/dl/')) {
-        downloadUrl = await this.extractRealDownloadUrl(url);
-      }
-
-      if (downloadUrl) {
-        await this.initiateDownload(downloadUrl, url);
-        this.setFileStatus(url, CONFIG.STATUS.SUCCESS);
-        this.showNotification('✅ Retry Successful', 'File downloaded successfully');
-      } else {
-        throw new Error('Could not extract download URL');
-      }
-    } catch (error) {
-      console.error(`Retry failed for ${url}:`, error);
-      this.setFileStatus(url, CONFIG.STATUS.FAILED, error.message);
-      this.showNotification('❌ Retry Failed', error.message);
+    if (this.downloadManager) {
+      await this.downloadManager.retryFile(url);
     }
   }
 
@@ -1262,6 +1039,10 @@ class FitGirlDownloader {
 
   // Cleanup method to prevent memory leaks
   destroy() {
+    if (this.downloadManager) {
+      this.downloadManager = null;
+    }
+
     if (this.selectionManager) {
       this.selectionManager = null;
     }

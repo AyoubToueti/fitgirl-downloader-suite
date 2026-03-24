@@ -34,6 +34,7 @@
         "content/original-links-modal.js",
         "content/storage-manager.js",
         "content/selection-manager.js",
+        "content/download-manager.js",
         "content/content-script.js"
       ],
       "css": [
