@@ -18,6 +18,7 @@ const OriginalLinksModalClass = typeof FitGirlOriginalLinksModal === 'function' 
 const StorageManagerClass = typeof FitGirlStorageManager === 'function' ? FitGirlStorageManager : null;
 const SelectionManagerClass = typeof FitGirlSelectionManager === 'function' ? FitGirlSelectionManager : null;
 const DownloadManagerClass = typeof FitGirlDownloadManager === 'function' ? FitGirlDownloadManager : null;
+const PageUIManagerClass = typeof FitGirlPageUIManager === 'function' ? FitGirlPageUIManager : null;
 
 class FitGirlDownloader {
   constructor() {
@@ -40,6 +41,7 @@ class FitGirlDownloader {
     this.storageManager = StorageManagerClass ? new StorageManagerClass(this) : null;
     this.selectionManager = SelectionManagerClass ? new SelectionManagerClass(this) : null;
     this.downloadManager = DownloadManagerClass ? new DownloadManagerClass(this) : null;
+    this.pageUIManager = PageUIManagerClass ? new PageUIManagerClass(this) : null;
     
     // Mutation handler extracted into dedicated module
     this.mutationHandler = MutationHandlerClass ? new MutationHandlerClass(this) : null;
@@ -104,70 +106,30 @@ class FitGirlDownloader {
   }
 
   normalizeUIMode(mode) {
-    if (mode === CONFIG.UI_MODES.INLINE) {
-      return CONFIG.UI_MODES.INLINE;
+    if (this.pageUIManager) {
+      return this.pageUIManager.normalizeUIMode(mode);
     }
+
     return CONFIG.UI_MODES.MODAL;
   }
 
   isModalMode() {
+    if (this.pageUIManager) {
+      return this.pageUIManager.isModalMode();
+    }
+
     return this.uiMode === CONFIG.UI_MODES.MODAL;
   }
 
   async loadUIModePreference() {
-    this.uiMode = this.normalizeUIMode(CONFIG.DEFAULT_UI_MODE);
-
-    try {
-      const response = await browserAPI.runtime.sendMessage({
-        action: 'getStorage',
-        keys: [CONFIG.STORAGE_KEYS.USER_PREFERENCES]
-      });
-
-      if (!response || !response.success) {
-        return;
-      }
-
-      const prefs = response.data[CONFIG.STORAGE_KEYS.USER_PREFERENCES] || {};
-      this.uiMode = this.normalizeUIMode(prefs.uiMode);
-    } catch (error) {
-      console.error('FitGirl Downloader: Failed to load ui mode preference', error);
-      this.uiMode = this.normalizeUIMode(CONFIG.DEFAULT_UI_MODE);
+    if (this.pageUIManager) {
+      await this.pageUIManager.loadUIModePreference();
     }
   }
 
   tryInitialize(attempt = 1) {
-    console.log(`FitGirl Downloader: Initialization attempt ${attempt}`);
-
-    if (this.initialized) {
-      return;
-    }
-
-    if (this.isFitGirlPage()) {
-      if (this.hasMainUI()) {
-        this.initialized = true;
-        return;
-      }
-
-      if (this.processFitGirlPage()) {
-        this.initialized = true;
-        if (this.initRetryTimeout) {
-          clearTimeout(this.initRetryTimeout);
-          this.initRetryTimeout = null;
-        }
-        console.log('FitGirl Downloader: Successfully initialized on FitGirl page');
-      } else if (attempt < 5) {
-        if (this.initRetryTimeout) {
-          clearTimeout(this.initRetryTimeout);
-        }
-        this.initRetryTimeout = setTimeout(() => {
-          this.initRetryTimeout = null;
-          this.tryInitialize(attempt + 1);
-        }, 1000 * attempt);
-      }
-    } else if (this.isFuckingFastPage()) {
-      this.processFuckingFastPage();
-      this.initialized = true;
-      console.log('FitGirl Downloader: Successfully initialized on fuckingfast page');
+    if (this.pageUIManager) {
+      this.pageUIManager.tryInitialize(attempt);
     }
   }
 
@@ -191,179 +153,77 @@ class FitGirlDownloader {
   }
 
   isFitGirlPage() {
+    if (this.pageUIManager) {
+      return this.pageUIManager.isFitGirlPage();
+    }
+
     return window.location.hostname.includes('fitgirl-repacks.site');
   }
 
   isFuckingFastPage() {
+    if (this.pageUIManager) {
+      return this.pageUIManager.isFuckingFastPage();
+    }
+
     return window.location.hostname.includes('fuckingfast.co');
   }
 
   processFitGirlPage() {
-    const downloadSection = this.findDownloadSection();
-
-    if (!this.isModalMode()) {
-      this.teardownModalPresentation();
-
-      if (downloadSection) {
-        this.ensureInlineUI(downloadSection);
-        return true;
-      }
-
-      return this.hasMainUI();
-    }
-
-    if (this.inlineUI) {
-      this.inlineUI.teardown();
-    }
-
-    if (downloadSection) {
-      this.ensureFitGirlTriggerButton();
-      return true;
-    }
-
-    if (this.modalUI && this.modalUI.hasTriggerButton()) {
-      return true;
+    if (this.pageUIManager) {
+      return this.pageUIManager.processFitGirlPage();
     }
 
     return false;
   }
 
   teardownModalPresentation() {
-    if (this.modalUI) {
-      this.modalUI.teardown();
+    if (this.pageUIManager) {
+      this.pageUIManager.teardownModalPresentation();
     }
   }
 
   ensureInlineUI(downloadSection) {
-    if (this.inlineUI) {
-      this.inlineUI.ensureInlineUI(downloadSection);
-      return;
+    if (this.pageUIManager) {
+      this.pageUIManager.ensureInlineUI(downloadSection);
     }
-
-    const existingUI = this.getMainUIElement();
-    if (existingUI) {
-      if (existingUI.parentElement !== downloadSection) {
-        downloadSection.insertBefore(existingUI, downloadSection.firstChild);
-      }
-      this.cacheElements();
-      this.refreshCheckboxCache();
-      this.updateCounter();
-      this.updateToggleButton();
-      this.setupLinkToggle();
-      return;
-    }
-
-    this.createDownloadUI(downloadSection);
   }
 
   findDownloadSection() {
-    // Try multiple selectors efficiently
-    const selectors = [
-      'textarea[readonly]',
-      'textarea#plaintext',
-      'pre:has(a[href*="fuckingfast.co"])',
-      'article:has(a[href*="fuckingfast.co"])'
-    ];
-
-    for (const selector of selectors) {
-      try {
-        const element = document.querySelector(selector);
-        if (element?.parentElement) {
-          return element.parentElement;
-        }
-      } catch (e) {
-        // Skip invalid selectors
-        continue;
-      }
+    if (this.pageUIManager) {
+      return this.pageUIManager.findDownloadSection();
     }
+
     return null;
   }
 
   async createDownloadUI(container) {
-    if (!container) return;
-
-    if (container.querySelector('.fg-download-ui') || this.hasMainUI()) {
-      console.log('FitGirl Downloader: Main UI already exists, skipping render');
-      return;
+    if (this.pageUIManager) {
+      await this.pageUIManager.createDownloadUI(container);
     }
-
-    const uiContainer = document.createElement('div');
-    uiContainer.className = 'fg-download-ui';
-    const isModalMode = this.isModalMode();
-    uiContainer.innerHTML = `
-      <div class="fg-header">
-        <h3 class="fg-title">🎮 FitGirl Downloader</h3>
-        <button class="fg-btn fg-btn-secondary fg-toggle-links">
-          ${isModalMode ? '✖ Close Downloader' : '👁️ Show Original Links'}
-        </button>
-      </div>
-      
-      <div class="fg-controls">
-        <div class="fg-control-group">
-          <button class="fg-btn fg-btn-primary fg-start-btn">
-            🚀 Start Download
-          </button>
-          <button class="fg-btn fg-btn-danger fg-stop-btn" style="display: none;">
-            ⏹️ Stop
-          </button>
-          <button class="fg-btn fg-btn-sm fg-toggle-select">
-            ☑️ Select All
-          </button>
-          <button class="fg-btn fg-btn-sm fg-reset-selection">Reset</button>
-        </div>
-        
-        <div class="fg-counter">
-          <span class="fg-counter-text">0 of 0 files selected (0 skipped)</span>
-        </div>
-      </div>
-      
-      <div class="fg-file-list"></div>
-      
-      <div class="fg-status-panel">
-        <div class="fg-status-text">Ready to download</div>
-      </div>
-    `;
-
-    if (container.classList && container.classList.contains('fg-ui-modal')) {
-      container.appendChild(uiContainer);
-    } else {
-      container.insertBefore(uiContainer, container.firstChild);
-    }
-
-    // Cache elements after insertion
-    this.cacheElements();
-    this.refreshCheckboxCache();
-
-    await this.extractAndDisplayLinks();
-    this.bindEventHandlers();
-    this.setupLinkToggle();
   }
 
   ensureFitGirlTriggerButton() {
-    if (this.modalUI) {
-      this.modalUI.ensureTriggerButton();
+    if (this.pageUIManager) {
+      this.pageUIManager.ensureFitGirlTriggerButton();
     }
   }
 
   ensureExtensionModal() {
-    if (this.modalUI) {
-      this.modalUI.ensureModalContainer();
+    if (this.pageUIManager) {
+      this.pageUIManager.ensureExtensionModal();
     }
   }
 
   async openExtensionUIModal() {
-    if (this.modalUI) {
-      await this.modalUI.open();
+    if (this.pageUIManager) {
+      await this.pageUIManager.openExtensionUIModal();
     }
   }
 
   closeExtensionUIModal() {
-    if (this.modalUI) {
-      this.modalUI.close();
-      return;
+    if (this.pageUIManager) {
+      this.pageUIManager.closeExtensionUIModal();
     }
-
-    document.body.classList.remove('fg-ui-modal-open');
   }
 
   cacheElements() {
@@ -609,8 +469,8 @@ class FitGirlDownloader {
   }
 
   setupLinkToggle() {
-    if (!this.isModalMode()) {
-      this.hideOriginalLinks();
+    if (this.pageUIManager) {
+      this.pageUIManager.setupLinkToggle();
     }
   }
 
@@ -849,40 +709,21 @@ class FitGirlDownloader {
   }
 
   processFuckingFastPage() {
-    console.log('FitGirl Downloader: Processing fuckingfast.co page');
-
-    if (this.currentPage.includes('/dl/')) {
-      this.addDirectDownloadButton();
-    } else {
-      this.addExtractButton();
+    if (this.pageUIManager) {
+      this.pageUIManager.processFuckingFastPage();
     }
   }
 
   addDirectDownloadButton() {
-    const button = document.createElement('button');
-    button.className = 'fg-float-btn';
-    button.innerHTML = '🚀 Send to Downloader';
-    button.addEventListener('click', () => {
-      this.initiateDownload(window.location.href, window.location.href);
-    });
-    document.body.appendChild(button);
+    if (this.pageUIManager) {
+      this.pageUIManager.addDirectDownloadButton();
+    }
   }
 
   addExtractButton() {
-    const button = document.createElement('button');
-    button.className = 'fg-float-btn';
-    button.innerHTML = '🔍 Extract & Download';
-    button.addEventListener('click', async () => {
-      try {
-        const downloadUrl = await this.extractRealDownloadUrl(window.location.href);
-        if (downloadUrl) {
-          await this.initiateDownload(downloadUrl, window.location.href);
-        }
-      } catch (error) {
-        this.showNotification('❌ Error', error.message);
-      }
-    });
-    document.body.appendChild(button);
+    if (this.pageUIManager) {
+      this.pageUIManager.addExtractButton();
+    }
   }
 
   async logSuccess(url) {
@@ -1039,6 +880,10 @@ class FitGirlDownloader {
 
   // Cleanup method to prevent memory leaks
   destroy() {
+    if (this.pageUIManager) {
+      this.pageUIManager = null;
+    }
+
     if (this.downloadManager) {
       this.downloadManager = null;
     }

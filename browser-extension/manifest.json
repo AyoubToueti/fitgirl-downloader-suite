@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "FitGirl Downloader",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Automatically detect and download FitGirl fuckingfast.co links with pause/resume, file selection, and retry capabilities",
   "permissions": [
     "storage",
@@ -35,6 +35,7 @@
         "content/storage-manager.js",
         "content/selection-manager.js",
         "content/download-manager.js",
+        "content/page-ui-manager.js",
         "content/content-script.js"
       ],
       "css": [
