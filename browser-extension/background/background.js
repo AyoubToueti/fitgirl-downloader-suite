@@ -26,6 +26,7 @@ console.log('FitGirl Downloader: Background service worker loaded');
 // Cache for extracted URLs (prevent redundant fetches)
 const urlCache = new Map();
 const CACHE_EXPIRY = 5 * 60 * 1000; // 5 minutes
+const pageDerivedDataInFlight = new Map();
 
 // Size calculation jobs and cache
 const sizeJobs = new Map();
@@ -99,42 +100,24 @@ async function handleExtractDownloadUrl(request, sendResponse) {
 
     console.log('Extracting download URL from:', url);
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
-
-    const response = await fetch(url, {
-      signal: controller.signal,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      }
+    const parsed = await getOrCreatePageDerivedDataRequest(url, {
+      timeoutMs: 10000
     });
 
-    clearTimeout(timeoutId);
+    if (parsed.downloadUrl) {
+      setUrlCacheEntry(url, parsed.downloadUrl);
 
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-
-    const html = await response.text();
-    const match = html.match(CONFIG.PATTERNS.WINDOW_OPEN_REGEX);
-
-    if (match && match[1]) {
-      const downloadUrl = match[1];
-      
-      // Cache the result
-      urlCache.set(url, {
-        downloadUrl: downloadUrl,
-        timestamp: Date.now()
-      });
-
-      // Limit cache size
-      if (urlCache.size > 100) {
-        const firstKey = urlCache.keys().next().value;
-        urlCache.delete(firstKey);
+      if (parsed.sizeResult) {
+        setSizeCacheEntry(url, {
+          status: parsed.sizeResult.status,
+          bytes: parsed.sizeResult.bytes,
+          source: parsed.sizeResult.source,
+          error: parsed.sizeResult.error || null
+        });
       }
 
-      console.log('Extracted download URL:', downloadUrl);
-      sendResponse({ success: true, downloadUrl: downloadUrl });
+      console.log('Extracted download URL:', parsed.downloadUrl);
+      sendResponse({ success: true, downloadUrl: parsed.downloadUrl });
     } else {
       throw new Error('No /dl/ URL found in page');
     }
@@ -146,6 +129,18 @@ async function handleExtractDownloadUrl(request, sendResponse) {
       console.error('Failed to extract download URL:', error);
       sendResponse({ success: false, error: error.message });
     }
+  }
+}
+
+function setUrlCacheEntry(url, downloadUrl) {
+  urlCache.set(url, {
+    downloadUrl,
+    timestamp: Date.now()
+  });
+
+  if (urlCache.size > 100) {
+    const firstKey = urlCache.keys().next().value;
+    urlCache.delete(firstKey);
   }
 }
 
@@ -228,6 +223,13 @@ function parseSizeFromHtml(html) {
   };
 }
 
+function parseDownloadUrlFromHtml(html) {
+  if (!html) return null;
+
+  const match = html.match(CONFIG.PATTERNS.WINDOW_OPEN_REGEX);
+  return match && match[1] ? match[1] : null;
+}
+
 function createAbortControllerWithTimeout(timeoutMs, parentSignal) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
@@ -254,8 +256,98 @@ function createAbortControllerWithTimeout(timeoutMs, parentSignal) {
   };
 }
 
+function createAbortError() {
+  const error = new Error('Request aborted');
+  error.name = 'AbortError';
+  return error;
+}
+
+function awaitWithParentAbort(promise, parentSignal) {
+  if (!parentSignal) {
+    return promise;
+  }
+
+  if (parentSignal.aborted) {
+    return Promise.reject(createAbortError());
+  }
+
+  return new Promise((resolve, reject) => {
+    const onAbort = () => {
+      parentSignal.removeEventListener('abort', onAbort);
+      reject(createAbortError());
+    };
+
+    parentSignal.addEventListener('abort', onAbort, { once: true });
+
+    promise.then(
+      (value) => {
+        parentSignal.removeEventListener('abort', onAbort);
+        resolve(value);
+      },
+      (error) => {
+        parentSignal.removeEventListener('abort', onAbort);
+        reject(error);
+      }
+    );
+  });
+}
+
+function getOrCreatePageDerivedDataRequest(url, options = {}) {
+  const existing = pageDerivedDataInFlight.get(url);
+  if (existing) {
+    return existing;
+  }
+
+  const requestPromise = fetchPageDerivedData(url, options)
+    .finally(() => {
+      const current = pageDerivedDataInFlight.get(url);
+      if (current === requestPromise) {
+        pageDerivedDataInFlight.delete(url);
+      }
+    });
+
+  pageDerivedDataInFlight.set(url, requestPromise);
+  return requestPromise;
+}
+
 async function extractFileSizeFromPage(url, parentSignal) {
   const timeoutMs = CONFIG.SIZE_CALC_TIMEOUT_MS || 12000;
+  try {
+    const parsed = await awaitWithParentAbort(getOrCreatePageDerivedDataRequest(url, {
+      timeoutMs,
+      parentSignal
+    }), parentSignal);
+
+    if (parsed.downloadUrl) {
+      setUrlCacheEntry(url, parsed.downloadUrl);
+    }
+
+    if (!parsed.sizeResult) {
+      return {
+        status: CONFIG.SIZE_STATUS.UNKNOWN,
+        bytes: null,
+        source: 'size-not-found'
+      };
+    }
+
+    return parsed.sizeResult;
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      throw error;
+    }
+
+    return {
+      status: CONFIG.SIZE_STATUS.UNKNOWN,
+      bytes: null,
+      source: 'request-error',
+      error: error.message || 'Unknown error'
+    };
+  }
+}
+
+async function fetchPageDerivedData(url, options = {}) {
+  const timeoutMs = Number(options.timeoutMs) || 12000;
+  const parentSignal = options.parentSignal;
   const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
 
   const { controller, cleanup } = createAbortControllerWithTimeout(timeoutMs, parentSignal);
@@ -270,35 +362,30 @@ async function extractFileSizeFromPage(url, parentSignal) {
 
     if (!response.ok) {
       return {
-        status: CONFIG.SIZE_STATUS.UNKNOWN,
-        bytes: null,
-        source: 'http-status',
-        error: `HTTP ${response.status}`
+        downloadUrl: null,
+        sizeResult: {
+          status: CONFIG.SIZE_STATUS.UNKNOWN,
+          bytes: null,
+          source: 'http-status',
+          error: `HTTP ${response.status}`
+        }
       };
     }
 
     const html = await response.text();
-    const parsed = parseSizeFromHtml(html);
-    if (!parsed) {
-      return { status: CONFIG.SIZE_STATUS.UNKNOWN, bytes: null, source: 'size-not-found' };
-    }
+    const downloadUrl = parseDownloadUrlFromHtml(html);
+    const parsedSize = parseSizeFromHtml(html);
 
     return {
-      status: CONFIG.SIZE_STATUS.KNOWN,
-      bytes: parsed.bytes,
-      source: 'html-size-text',
-      label: parsed.label
-    };
-  } catch (error) {
-    if (error.name === 'AbortError') {
-      throw error;
-    }
-
-    return {
-      status: CONFIG.SIZE_STATUS.UNKNOWN,
-      bytes: null,
-      source: 'request-error',
-      error: error.message || 'Unknown error'
+      downloadUrl,
+      sizeResult: parsedSize
+        ? {
+            status: CONFIG.SIZE_STATUS.KNOWN,
+            bytes: parsedSize.bytes,
+            source: 'html-size-text',
+            label: parsedSize.label
+          }
+        : null
     };
   } finally {
     cleanup();
