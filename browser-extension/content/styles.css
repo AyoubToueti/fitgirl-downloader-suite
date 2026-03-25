@@ -42,6 +42,13 @@ body,
   box-shadow: 0 10px 30px var(--fg-shadow-lg);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
   color: var(--fg-dark);
+  display: grid;
+  grid-template-columns: minmax(240px, 25%) minmax(0, 1fr);
+  grid-template-areas:
+    'header header'
+    'controls list'
+    'status status';
+  gap: 20px;
   /* Performance optimizations */
   contain: layout style;
   will-change: auto;
@@ -52,10 +59,11 @@ body,
 
 /* Header */
 .fg-header {
+  grid-area: header;
   background: var(--fg-white);
   border-radius: 8px;
   padding: 20px;
-  margin-bottom: 20px;
+  margin-bottom: 0;
   box-shadow: 0 2px 8px var(--fg-shadow);
   display: flex;
   align-items: center;
@@ -116,11 +124,35 @@ body,
 
 /* Controls Section */
 .fg-controls {
+  grid-area: controls;
   background: var(--fg-white);
   border-radius: 8px;
   padding: 20px;
-  margin-bottom: 20px;
+  margin-bottom: 0;
   box-shadow: 0 2px 8px var(--fg-shadow);
+  height: min(56vh, 600px);
+  overflow-y: hidden;
+}
+
+.fg-search-row {
+  margin-bottom: 12px;
+}
+
+.fg-file-search-input {
+  width: 100%;
+  min-height: 38px;
+  padding: 8px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--fg-dark);
+  background: var(--fg-white);
+}
+
+.fg-file-search-input:focus {
+  outline: none;
+  border-color: var(--fg-primary);
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.18);
 }
 
 .fg-control-group {
@@ -260,15 +292,16 @@ body,
 }
 
 .fg-package-summary-list li {
-  display: grid;
-  grid-template-columns: 1fr auto auto;
-  gap: 8px;
-  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-start;
   font-size: 12px;
 }
 
 .fg-package-name {
   color: #0f172a;
+  width: 100%;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -369,23 +402,25 @@ body,
 
 /* File List */
 .fg-file-list {
+  grid-area: list;
   background: var(--fg-white);
   border-radius: 8px;
   padding: 16px;
-  margin-bottom: 20px;
+  margin-bottom: 0;
+  height: min(56vh, 600px);
   max-height: min(56vh, 600px);
   overflow-y: auto;
   box-shadow: 0 2px 8px var(--fg-shadow);
   /* Performance: Optimize scrolling */
   contain: layout style paint;
   will-change: scroll-position;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
+  scrollbar-width: thin;
+  scrollbar-color: var(--fg-primary) var(--fg-light);
 }
 
 .fg-file-list::-webkit-scrollbar {
-  width: 0;
-  height: 0;
+  width: 8px;
+  height: 8px;
 }
 
 .fg-file-list::-webkit-scrollbar-track {
@@ -586,6 +621,7 @@ body,
 
 /* Status Panel */
 .fg-status-panel {
+  grid-area: status;
   background: var(--fg-white);
   border-radius: 8px;
   padding: 16px;
@@ -776,17 +812,15 @@ body.fg-ui-modal-open {
   border-radius: 0;
   box-shadow: none;
   height: 100%;
-  display: flex;
-  flex-direction: column;
   min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr) auto;
 }
 
 .fg-ui-modal > .fg-download-ui .fg-file-list {
-  flex: 1 1 auto;
-  min-height: 0;
+  height: 100%;
   max-height: none;
   overflow-y: auto;
-  margin-bottom: 16px;
+  min-height: 0;
 }
 
 /* Original Links Modal */
@@ -934,6 +968,13 @@ body.fg-links-modal-open {
 @media (max-width: 768px) {
   .fg-download-ui {
     padding: 16px;
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      'header'
+      'controls'
+      'list'
+      'status';
+    gap: 14px;
   }
 
   .fg-file-item {
@@ -1019,8 +1060,14 @@ body.fg-links-modal-open {
     padding: 14px;
   }
 
+  .fg-controls {
+    height: auto;
+    overflow-y: visible;
+  }
+
   .fg-file-list {
     padding: 12px;
+    height: auto;
   }
 }
 

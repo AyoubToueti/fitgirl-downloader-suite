@@ -268,6 +268,17 @@ class FitGirlLinkListManager {
     });
   }
 
+  filterFileItems(rawQuery = '') {
+    const query = (rawQuery || '').trim().toLowerCase();
+
+    this.downloader.fileItems.forEach((item) => {
+      const filename = this.downloader.getFilenameFromUrl(item.url).toLowerCase();
+      const url = item.url.toLowerCase();
+      const matches = !query || filename.includes(query) || url.includes(query);
+      item.element.style.display = matches ? '' : 'none';
+    });
+  }
+
   getAllDownloadLinks() {
     const uniqueUrls = new Set();
     const links = [];

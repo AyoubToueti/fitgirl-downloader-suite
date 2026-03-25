@@ -181,6 +181,7 @@ class FitGirlDownloader {
       fileList: document.querySelector('.fg-file-list'),
       startBtn: document.querySelector('.fg-start-btn'),
       stopBtn: document.querySelector('.fg-stop-btn'),
+      fileSearchInput: document.querySelector('.fg-file-search-input'),
       toggleSelectCheckbox: document.querySelector('.fg-toggle-select-checkbox'),
       toggleSelectText: document.querySelector('.fg-toggle-select-text'),
       resetBtn: document.querySelector('.fg-reset-selection'),
@@ -233,7 +234,7 @@ class FitGirlDownloader {
   }
 
   bindEventHandlers() {
-    const { startBtn, stopBtn, toggleSelectCheckbox, resetBtn, toggleLinksBtn } = this.cachedElements;
+    const { startBtn, stopBtn, fileSearchInput, toggleSelectCheckbox, resetBtn, toggleLinksBtn } = this.cachedElements;
 
     if (startBtn && startBtn.dataset.fgBoundStart !== 'true') {
       startBtn.addEventListener('click', () => this.startBulkDownload());
@@ -267,6 +268,13 @@ class FitGirlDownloader {
       toggleLinksBtn.dataset.fgBoundLinks = 'true';
     }
 
+    if (fileSearchInput && fileSearchInput.dataset.fgBoundSearch !== 'true') {
+      fileSearchInput.addEventListener('input', () => {
+        this.linkListManager?.filterFileItems(fileSearchInput.value);
+      });
+      fileSearchInput.dataset.fgBoundSearch = 'true';
+    }
+
     if (this.cachedElements.calcSizesBtn && this.cachedElements.calcSizesBtn.dataset.fgBoundCalcSizes !== 'true') {
       this.cachedElements.calcSizesBtn.addEventListener('click', () => this.startManualSizeCalculation());
       this.cachedElements.calcSizesBtn.dataset.fgBoundCalcSizes = 'true';
@@ -275,6 +283,10 @@ class FitGirlDownloader {
     if (this.cachedElements.cancelSizesBtn && this.cachedElements.cancelSizesBtn.dataset.fgBoundCancelSizes !== 'true') {
       this.cachedElements.cancelSizesBtn.addEventListener('click', () => this.cancelManualSizeCalculation());
       this.cachedElements.cancelSizesBtn.dataset.fgBoundCancelSizes = 'true';
+    }
+
+    if (fileSearchInput) {
+      this.linkListManager?.filterFileItems(fileSearchInput.value);
     }
   }
 

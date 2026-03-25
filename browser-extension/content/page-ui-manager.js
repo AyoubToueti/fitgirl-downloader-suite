@@ -183,6 +183,10 @@ class FitGirlPageUIManager {
       </div>
 
       <div class="fg-controls">
+        <div class="fg-search-row">
+          <input type="search" class="fg-file-search-input" placeholder="Search files..." aria-label="Search files">
+        </div>
+
         <div class="fg-control-group">
           <button class="fg-btn fg-btn-primary fg-start-btn">
             🚀 Start Download
