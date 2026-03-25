@@ -27,6 +27,11 @@ console.log('FitGirl Downloader: Background service worker loaded');
 const urlCache = new Map();
 const CACHE_EXPIRY = 5 * 60 * 1000; // 5 minutes
 
+// Size calculation jobs and cache
+const sizeJobs = new Map();
+const sizeCache = new Map();
+const SIZE_JOB_RETENTION_MS = 10 * 60 * 1000; // 10 minutes
+
 // Batch notification queue
 let notificationQueue = [];
 let notificationTimeout = null;
@@ -57,6 +62,18 @@ browserAPI.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
     case 'updateStats':
       handleUpdateStats(request, sendResponse);
+      return true;
+
+    case 'startSizeCalculation':
+      handleStartSizeCalculation(request, sendResponse);
+      return true;
+
+    case 'getSizeCalculationStatus':
+      handleGetSizeCalculationStatus(request, sendResponse);
+      return true;
+
+    case 'cancelSizeCalculation':
+      handleCancelSizeCalculation(request, sendResponse);
       return true;
 
     default:
@@ -130,6 +147,339 @@ async function handleExtractDownloadUrl(request, sendResponse) {
       sendResponse({ success: false, error: error.message });
     }
   }
+}
+
+function createSizeTaskId() {
+  return `size_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function getSizeCacheEntry(url) {
+  const cacheTtl = CONFIG.SIZE_CACHE_TTL_MS || (6 * 60 * 60 * 1000);
+  const entry = sizeCache.get(url);
+  if (!entry) return null;
+
+  if ((Date.now() - entry.timestamp) > cacheTtl) {
+    sizeCache.delete(url);
+    return null;
+  }
+
+  return entry;
+}
+
+function setSizeCacheEntry(url, value) {
+  sizeCache.set(url, {
+    ...value,
+    timestamp: Date.now()
+  });
+
+  if (sizeCache.size > 500) {
+    const firstKey = sizeCache.keys().next().value;
+    sizeCache.delete(firstKey);
+  }
+}
+
+function parseSizeToNumber(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return null;
+  }
+  return Math.floor(parsed);
+}
+
+function parseHumanSizeToBytes(sizeValue, sizeUnit) {
+  const numeric = Number(String(sizeValue).replace(',', '.'));
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return null;
+  }
+
+  const unit = String(sizeUnit || 'B').toUpperCase();
+  const multipliers = {
+    B: 1,
+    KB: 1024,
+    MB: 1024 * 1024,
+    GB: 1024 * 1024 * 1024,
+    TB: 1024 * 1024 * 1024 * 1024
+  };
+
+  if (!multipliers[unit]) {
+    return null;
+  }
+
+  return Math.floor(numeric * multipliers[unit]);
+}
+
+function parseSizeFromHtml(html) {
+  if (!html) return null;
+
+  // Expected examples: "Size: 500.0MB | Downloads: 993"
+  const sizeMatch = html.match(/Size\s*:\s*([0-9]+(?:[\.,][0-9]+)?)\s*([KMGT]?B)/i);
+  if (!sizeMatch) {
+    return null;
+  }
+
+  const bytes = parseHumanSizeToBytes(sizeMatch[1], sizeMatch[2]);
+  if (!bytes) {
+    return null;
+  }
+
+  return {
+    bytes,
+    label: `${sizeMatch[1]}${String(sizeMatch[2]).toUpperCase()}`
+  };
+}
+
+function createAbortControllerWithTimeout(timeoutMs, parentSignal) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  let removeAbortForwarder = null;
+  if (parentSignal) {
+    const forwardAbort = () => controller.abort();
+    if (parentSignal.aborted) {
+      controller.abort();
+    } else {
+      parentSignal.addEventListener('abort', forwardAbort, { once: true });
+      removeAbortForwarder = () => parentSignal.removeEventListener('abort', forwardAbort);
+    }
+  }
+
+  return {
+    controller,
+    cleanup: () => {
+      clearTimeout(timeoutId);
+      if (removeAbortForwarder) {
+        removeAbortForwarder();
+      }
+    }
+  };
+}
+
+async function extractFileSizeFromPage(url, parentSignal) {
+  const timeoutMs = CONFIG.SIZE_CALC_TIMEOUT_MS || 12000;
+  const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
+
+  const { controller, cleanup } = createAbortControllerWithTimeout(timeoutMs, parentSignal);
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      signal: controller.signal,
+      headers: {
+        'User-Agent': userAgent
+      }
+    });
+
+    if (!response.ok) {
+      return {
+        status: CONFIG.SIZE_STATUS.UNKNOWN,
+        bytes: null,
+        source: 'http-status',
+        error: `HTTP ${response.status}`
+      };
+    }
+
+    const html = await response.text();
+    const parsed = parseSizeFromHtml(html);
+    if (!parsed) {
+      return { status: CONFIG.SIZE_STATUS.UNKNOWN, bytes: null, source: 'size-not-found' };
+    }
+
+    return {
+      status: CONFIG.SIZE_STATUS.KNOWN,
+      bytes: parsed.bytes,
+      source: 'html-size-text',
+      label: parsed.label
+    };
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      throw error;
+    }
+
+    return {
+      status: CONFIG.SIZE_STATUS.UNKNOWN,
+      bytes: null,
+      source: 'request-error',
+      error: error.message || 'Unknown error'
+    };
+  } finally {
+    cleanup();
+  }
+}
+
+async function runSizeCalculationJob(taskId) {
+  const job = sizeJobs.get(taskId);
+  if (!job) return;
+
+  const concurrency = Math.max(1, Number(CONFIG.SIZE_CALC_CONCURRENCY || 1));
+  const requestGapMs = Math.max(0, Number(CONFIG.SIZE_CALC_REQUEST_GAP_MS || 0));
+  job.status = CONFIG.SIZE_STATUS.RUNNING;
+
+  let nextIndex = 0;
+
+  const worker = async () => {
+    while (!job.controller.signal.aborted && nextIndex < job.urls.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+
+      if (index >= job.urls.length) {
+        return;
+      }
+
+      const url = job.urls[index];
+
+      if (job.controller.signal.aborted) {
+        return;
+      }
+
+      const cached = getSizeCacheEntry(url);
+      const bypassUnknownCache = Boolean(job.ignoreCacheForUnknown && cached && cached.status === CONFIG.SIZE_STATUS.UNKNOWN);
+      if (cached && !bypassUnknownCache) {
+        job.results[url] = {
+          status: cached.status,
+          bytes: cached.bytes,
+          source: 'cache',
+          error: cached.error || null,
+          updatedAt: Date.now()
+        };
+        job.processed += 1;
+        continue;
+      }
+
+      if (requestGapMs > 0 && index > 0) {
+        await new Promise((resolve) => setTimeout(resolve, requestGapMs));
+      }
+
+      const result = await extractFileSizeFromPage(url, job.controller.signal);
+      job.results[url] = {
+        status: result.status,
+        bytes: result.bytes,
+        source: result.source,
+        error: result.error || null,
+        updatedAt: Date.now()
+      };
+
+      if (result.status === CONFIG.SIZE_STATUS.KNOWN || result.status === CONFIG.SIZE_STATUS.UNKNOWN) {
+        setSizeCacheEntry(url, {
+          status: result.status,
+          bytes: result.bytes,
+          source: result.source,
+          error: result.error || null
+        });
+      }
+
+      job.processed += 1;
+    }
+  };
+
+  const workers = Array.from({ length: Math.min(concurrency, job.urls.length) }, () => worker());
+
+  try {
+    await Promise.all(workers);
+
+    if (job.controller.signal.aborted) {
+      job.status = CONFIG.SIZE_STATUS.CANCELLED;
+    } else {
+      job.status = CONFIG.SIZE_STATUS.COMPLETED;
+    }
+  } catch (error) {
+    if (job.controller.signal.aborted || error?.name === 'AbortError') {
+      job.status = CONFIG.SIZE_STATUS.CANCELLED;
+    } else {
+      job.status = CONFIG.SIZE_STATUS.FAILED;
+      job.error = error.message || 'Size calculation failed';
+    }
+  } finally {
+    job.completedAt = Date.now();
+    job.cleanupAt = Date.now() + SIZE_JOB_RETENTION_MS;
+  }
+}
+
+async function handleStartSizeCalculation(request, sendResponse) {
+  try {
+    const inputUrls = Array.isArray(request.urls) ? request.urls : [];
+    const urls = [...new Set(inputUrls.filter((url) => typeof url === 'string' && url.trim()))];
+
+    if (urls.length === 0) {
+      sendResponse({ success: false, error: 'No valid URLs provided' });
+      return;
+    }
+
+    const taskId = createSizeTaskId();
+    const controller = new AbortController();
+
+    const job = {
+      taskId,
+      urls,
+      status: CONFIG.SIZE_STATUS.IDLE,
+      processed: 0,
+      total: urls.length,
+      results: {},
+      ignoreCacheForUnknown: Boolean(request.ignoreCacheForUnknown),
+      startedAt: Date.now(),
+      completedAt: null,
+      cleanupAt: null,
+      error: null,
+      controller
+    };
+
+    sizeJobs.set(taskId, job);
+
+    runSizeCalculationJob(taskId).catch((error) => {
+      const currentJob = sizeJobs.get(taskId);
+      if (!currentJob) return;
+      currentJob.status = CONFIG.SIZE_STATUS.FAILED;
+      currentJob.error = error.message || 'Unexpected size calculation error';
+      currentJob.completedAt = Date.now();
+      currentJob.cleanupAt = Date.now() + SIZE_JOB_RETENTION_MS;
+    });
+
+    sendResponse({ success: true, taskId, total: urls.length });
+  } catch (error) {
+    sendResponse({ success: false, error: error.message || 'Failed to start size calculation' });
+  }
+}
+
+async function handleGetSizeCalculationStatus(request, sendResponse) {
+  const { taskId } = request;
+  const job = sizeJobs.get(taskId);
+
+  if (!job) {
+    sendResponse({ success: false, error: 'Task not found' });
+    return;
+  }
+
+  const progress = job.total > 0
+    ? Math.round((job.processed / job.total) * 100)
+    : 0;
+
+  sendResponse({
+    success: true,
+    taskId,
+    status: job.status,
+    processed: job.processed,
+    total: job.total,
+    progress,
+    results: job.results,
+    error: job.error || null,
+    startedAt: job.startedAt,
+    completedAt: job.completedAt
+  });
+}
+
+async function handleCancelSizeCalculation(request, sendResponse) {
+  const { taskId } = request;
+  const job = sizeJobs.get(taskId);
+
+  if (!job) {
+    sendResponse({ success: false, error: 'Task not found' });
+    return;
+  }
+
+  job.controller.abort();
+  job.status = CONFIG.SIZE_STATUS.CANCELLED;
+  job.completedAt = Date.now();
+  job.cleanupAt = Date.now() + SIZE_JOB_RETENTION_MS;
+
+  sendResponse({ success: true, taskId });
 }
 
 /**
@@ -369,6 +719,19 @@ setInterval(() => {
   for (const [key, value] of urlCache.entries()) {
     if (now - value.timestamp > CACHE_EXPIRY) {
       urlCache.delete(key);
+    }
+  }
+
+  for (const [taskId, job] of sizeJobs.entries()) {
+    if (job.cleanupAt && now > job.cleanupAt) {
+      sizeJobs.delete(taskId);
+    }
+  }
+
+  const cacheTtl = CONFIG.SIZE_CACHE_TTL_MS || (6 * 60 * 60 * 1000);
+  for (const [url, cacheEntry] of sizeCache.entries()) {
+    if (now - cacheEntry.timestamp > cacheTtl) {
+      sizeCache.delete(url);
     }
   }
 }, 60000); // Every minute

@@ -20,6 +20,7 @@ const DownloadManagerClass = typeof FitGirlDownloadManager === 'function' ? FitG
 const PageUIManagerClass = typeof FitGirlPageUIManager === 'function' ? FitGirlPageUIManager : null;
 const LinkListManagerClass = typeof FitGirlLinkListManager === 'function' ? FitGirlLinkListManager : null;
 const FeedbackManagerClass = typeof FitGirlFeedbackManager === 'function' ? FitGirlFeedbackManager : null;
+const SizeComputeManagerClass = typeof FitGirlSizeComputeManager === 'function' ? FitGirlSizeComputeManager : null;
 
 class FitGirlDownloader {
   constructor() {
@@ -45,6 +46,7 @@ class FitGirlDownloader {
     this.pageUIManager = PageUIManagerClass ? new PageUIManagerClass(this) : null;
     this.linkListManager = LinkListManagerClass ? new LinkListManagerClass(this) : null;
     this.feedbackManager = FeedbackManagerClass ? new FeedbackManagerClass(this) : null;
+    this.sizeComputeManager = SizeComputeManagerClass ? new SizeComputeManagerClass(this) : null;
     
     // Mutation handler extracted into dedicated module
     this.mutationHandler = MutationHandlerClass ? new MutationHandlerClass(this) : null;
@@ -186,7 +188,12 @@ class FitGirlDownloader {
       counterText: document.querySelector('.fg-counter-text'),
       statusText: document.querySelector('.fg-status-text'),
       progressFill: document.querySelector('.fg-progress-fill'),
-      progressText: document.querySelector('.fg-progress-text')
+      progressText: document.querySelector('.fg-progress-text'),
+      calcSizesBtn: document.querySelector('.fg-calc-sizes-btn'),
+      cancelSizesBtn: document.querySelector('.fg-cancel-sizes-btn'),
+      sizeUnknownOnlyCheckbox: document.querySelector('.fg-size-unknown-checkbox'),
+      sizeProgressText: document.querySelector('.fg-size-progress-text'),
+      packageSummary: document.querySelector('.fg-package-summary')
     };
   }
 
@@ -258,6 +265,16 @@ class FitGirlDownloader {
         this.toggleOriginalLinks();
       });
       toggleLinksBtn.dataset.fgBoundLinks = 'true';
+    }
+
+    if (this.cachedElements.calcSizesBtn && this.cachedElements.calcSizesBtn.dataset.fgBoundCalcSizes !== 'true') {
+      this.cachedElements.calcSizesBtn.addEventListener('click', () => this.startManualSizeCalculation());
+      this.cachedElements.calcSizesBtn.dataset.fgBoundCalcSizes = 'true';
+    }
+
+    if (this.cachedElements.cancelSizesBtn && this.cachedElements.cancelSizesBtn.dataset.fgBoundCancelSizes !== 'true') {
+      this.cachedElements.cancelSizesBtn.addEventListener('click', () => this.cancelManualSizeCalculation());
+      this.cachedElements.cancelSizesBtn.dataset.fgBoundCancelSizes = 'true';
     }
   }
 
@@ -331,6 +348,21 @@ class FitGirlDownloader {
     this.downloadManager?.setFileStatus(url, status, errorMessage);
   }
 
+  async startManualSizeCalculation() {
+    if (!this.sizeComputeManager) return;
+    const onlyUnknown = Boolean(this.cachedElements.sizeUnknownOnlyCheckbox?.checked);
+    await this.sizeComputeManager.startManualCalculation({ onlyUnknown });
+  }
+
+  async cancelManualSizeCalculation() {
+    if (!this.sizeComputeManager) return;
+    await this.sizeComputeManager.cancelCalculation();
+  }
+
+  applySizeResults(sizeResults, progressMeta = null) {
+    this.linkListManager?.applySizeResults(sizeResults, progressMeta);
+  }
+
   async retryFile(url) {
     if (!this.downloadManager) return;
     await this.downloadManager.retryFile(url);
@@ -395,12 +427,17 @@ class FitGirlDownloader {
   }
 
   async loadPageState() {
-    return this.storageManager?.loadPageState() ?? { selections: {}, skipped: [] };
+    return this.storageManager?.loadPageState() ?? { selections: {}, skipped: [], sizeResults: {}, version: 1 };
   }
 
   async savePageState(state) {
     if (!this.storageManager) return;
     await this.storageManager.savePageState(state);
+  }
+
+  async saveSizeResults(sizeResults) {
+    if (!this.storageManager) return;
+    await this.storageManager.saveSizeResults(sizeResults);
   }
 
   async savePauseState(currentIndex, files) {
@@ -573,6 +610,11 @@ class FitGirlDownloader {
     if (this.storageManager) {
       this.storageManager.destroy();
       this.storageManager = null;
+    }
+
+    if (this.sizeComputeManager) {
+      this.sizeComputeManager.destroy();
+      this.sizeComputeManager = null;
     }
 
     if (this.originalLinksModal) {

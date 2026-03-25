@@ -9,6 +9,11 @@ const CONFIG = {
   RETRY_BASE_DELAY_EXTRACTION: 2000, // ms
   RETRY_BASE_DELAY_FDM: 1000, // ms
   CONSECUTIVE_FAILURES_THRESHOLD: 3,
+  SIZE_CALC_CONCURRENCY: 1,
+  SIZE_CALC_TIMEOUT_MS: 12000,
+  SIZE_CALC_REQUEST_GAP_MS: 250,
+  SIZE_CACHE_TTL_MS: 6 * 60 * 60 * 1000, // 6 hours
+  SIZE_POLL_INTERVAL_MS: 1000,
   
   // Pause/Resume settings
   PAUSE_EXPIRATION_TIME: 60 * 60 * 1000, // 1 hour in ms
@@ -21,7 +26,8 @@ const CONFIG = {
     FILE_SELECTIONS: 'file_selections',
     SKIPPED_FILES: 'skipped_files',
     DOWNLOAD_STATS: 'download_stats',
-    USER_PREFERENCES: 'user_preferences'
+    USER_PREFERENCES: 'user_preferences',
+    PAGE_STATE_VERSION: 'page_state_version'
   },
 
   // UI mode settings
@@ -36,11 +42,22 @@ const CONFIG = {
     IDLE: 'idle',
     PROCESSING: 'processing',
     SUCCESS: 'success',
+    COMPLETED: 'completed',
     FAILED: 'failed',
     RETRYING: 'retrying',
     SKIPPED: 'skipped',
     PAUSED: 'paused',
     STOPPED: 'stopped'
+  },
+
+  SIZE_STATUS: {
+    IDLE: 'idle',
+    RUNNING: 'running',
+    COMPLETED: 'completed',
+    FAILED: 'failed',
+    CANCELLED: 'cancelled',
+    KNOWN: 'known',
+    UNKNOWN: 'unknown'
   },
   
   // UI Colors

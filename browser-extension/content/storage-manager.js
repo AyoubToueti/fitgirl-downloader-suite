@@ -91,7 +91,15 @@ class FitGirlStorageManager {
       });
 
       if (response.success) {
-        this.pageStateCache = response.data[storageKey] || { selections: {}, skipped: [] };
+        this.pageStateCache = response.data[storageKey] || { selections: {}, skipped: [], sizeResults: {}, version: 1 };
+        if (Array.isArray(this.pageStateCache.skipped)) {
+          // Preserve backward compatibility with previous schema.
+        } else {
+          this.pageStateCache.skipped = [];
+        }
+        this.pageStateCache.selections = this.pageStateCache.selections || {};
+        this.pageStateCache.sizeResults = this.pageStateCache.sizeResults || {};
+        this.pageStateCache.version = this.pageStateCache.version || 1;
         this.pageStateLoaded = true;
         return this.pageStateCache;
       }
@@ -99,15 +107,28 @@ class FitGirlStorageManager {
       console.error('Error loading page state:', error);
     }
 
-    this.pageStateCache = { selections: {}, skipped: [] };
+    this.pageStateCache = { selections: {}, skipped: [], sizeResults: {}, version: 1 };
     this.pageStateLoaded = true;
     return this.pageStateCache;
   }
 
   async savePageState(state) {
+    state.version = state.version || 1;
+    state.selections = state.selections || {};
+    state.skipped = Array.isArray(state.skipped) ? state.skipped : [];
+    state.sizeResults = state.sizeResults || {};
     this.pageStateCache = state;
     this.pageStateLoaded = true;
     this.queueStorageWrite(this.downloader.pageHash, state);
+  }
+
+  async saveSizeResults(sizeResults) {
+    const state = await this.loadPageState();
+    state.sizeResults = {
+      ...(state.sizeResults || {}),
+      ...(sizeResults || {})
+    };
+    await this.savePageState(state);
   }
 
   async savePauseState(currentIndex, files) {

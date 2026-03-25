@@ -194,12 +194,22 @@ class FitGirlPageUIManager {
             <input type="checkbox" class="fg-toggle-select-checkbox" aria-label="Toggle all files">
             <span class="fg-toggle-select-text">Select All</span>
           </label>
+          <label class="fg-btn fg-btn-sm fg-toggle-select-control fg-size-unknown-toggle" title="Only request links with unknown size">
+            <input type="checkbox" class="fg-size-unknown-checkbox" aria-label="Recalculate only unknown sizes" checked>
+            <span class="fg-toggle-select-text">Unknown only</span>
+          </label>
+          <button class="fg-btn fg-btn-sm fg-btn-secondary fg-calc-sizes-btn">📏 Calculate Sizes</button>
+          <button class="fg-btn fg-btn-sm fg-btn-danger fg-cancel-sizes-btn" style="display: none;">✖ Cancel Size Scan</button>
           <button class="fg-btn fg-btn-sm fg-reset-selection">Reset</button>
         </div>
 
         <div class="fg-counter">
           <span class="fg-counter-text">0 of 0 files selected (0 skipped)</span>
         </div>
+        <div class="fg-size-progress">
+          <span class="fg-size-progress-text">Size scan idle</span>
+        </div>
+        <div class="fg-package-summary"></div>
       </div>
 
       <div class="fg-file-list"></div>
@@ -221,6 +231,30 @@ class FitGirlPageUIManager {
     await this.downloader.extractAndDisplayLinks();
     this.downloader.bindEventHandlers();
     this.setupLinkToggle();
+  }
+
+  setSizeCalculationState(isRunning) {
+    const { calcSizesBtn, cancelSizesBtn, sizeUnknownOnlyCheckbox } = this.downloader.cachedElements;
+    if (calcSizesBtn) {
+      calcSizesBtn.disabled = isRunning;
+      calcSizesBtn.textContent = isRunning ? '📏 Calculating...' : '📏 Calculate Sizes';
+    }
+
+    if (cancelSizesBtn) {
+      cancelSizesBtn.style.display = isRunning ? 'inline-flex' : 'none';
+      cancelSizesBtn.disabled = false;
+    }
+
+    if (sizeUnknownOnlyCheckbox) {
+      sizeUnknownOnlyCheckbox.disabled = isRunning;
+    }
+  }
+
+  setSizeProgressText(message) {
+    const { sizeProgressText } = this.downloader.cachedElements;
+    if (sizeProgressText) {
+      sizeProgressText.textContent = message;
+    }
   }
 
   ensureFitGirlTriggerButton() {
