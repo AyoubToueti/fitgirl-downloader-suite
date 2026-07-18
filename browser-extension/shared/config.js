@@ -81,7 +81,8 @@ const CONFIG = {
     FUCKINGFAST_BASE: 'fuckingfast.co',
     FUCKINGFAST_DL: '/dl/',
     FITGIRL_SITE: 'fitgirl-repacks.site',
-    WINDOW_OPEN_REGEX: /window\.open\(["']([^"']+\/dl\/[^"']+)["']/
+    WINDOW_OPEN_REGEX: /window\.open\(["']([^"']+\/dl\/[^"']+)["']/,
+    HTMX_POST_REGEX: /hx-post=["']([^"']+\/go)["']/i
   }
 };
 

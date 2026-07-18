@@ -226,8 +226,19 @@ function parseSizeFromHtml(html) {
 function parseDownloadUrlFromHtml(html) {
   if (!html) return null;
 
+  // 1. Try new HTMX pattern first
+  const htmxMatch = html.match(CONFIG.PATTERNS.HTMX_POST_REGEX);
+  if (htmxMatch && htmxMatch[1]) {
+    return { type: 'htmx_post', path: htmxMatch[1] };
+  }
+
+  // 2. Fallback to old window.open pattern
   const match = html.match(CONFIG.PATTERNS.WINDOW_OPEN_REGEX);
-  return match && match[1] ? match[1] : null;
+  if (match && match[1]) {
+    return { type: 'direct', url: match[1] };
+  }
+
+  return null;
 }
 
 function createAbortControllerWithTimeout(timeoutMs, parentSignal) {
@@ -373,11 +384,54 @@ async function fetchPageDerivedData(url, options = {}) {
     }
 
     const html = await response.text();
-    const downloadUrl = parseDownloadUrlFromHtml(html);
+    const parsedUrlData = parseDownloadUrlFromHtml(html);
     const parsedSize = parseSizeFromHtml(html);
 
+    let finalDownloadUrl = null;
+
+    if (parsedUrlData) {
+      if (parsedUrlData.type === 'direct') {
+        finalDownloadUrl = parsedUrlData.url;
+      } else if (parsedUrlData.type === 'htmx_post') {
+        // Resolve the relative path to an absolute URL
+        const baseUrl = new URL(url);
+        const postUrl = new URL(parsedUrlData.path, baseUrl).href;
+
+        try {
+          // Simulate the HTMX POST request to get the redirect/download URL
+          const postResponse = await fetch(postUrl, {
+            method: 'POST',
+            signal: controller.signal,
+            headers: {
+              'User-Agent': userAgent,
+              'HX-Request': 'true'
+            }
+          });
+
+          // The server may respond with a standard redirect (Location) or HTMX redirect (HX-Redirect)
+          finalDownloadUrl = postResponse.headers.get('HX-Redirect') ||
+                             postResponse.headers.get('Location') ||
+                             postResponse.url;
+
+          // Fallback: If Cloudflare blocks the POST, construct the known direct DL pattern
+          if (!finalDownloadUrl || finalDownloadUrl.includes('challenge')) {
+            const fileId = parsedUrlData.path.match(/\/f\/([^/]+)\//)?.[1];
+            if (fileId) {
+              finalDownloadUrl = new URL(`/f/${fileId}/dl`, baseUrl).href;
+            }
+          }
+        } catch (error) {
+          console.warn('HTMX POST resolution failed, falling back to direct pattern:', error);
+          const fileId = parsedUrlData.path.match(/\/f\/([^/]+)\//)?.[1];
+          if (fileId) {
+            finalDownloadUrl = new URL(`/f/${fileId}/dl`, baseUrl).href;
+          }
+        }
+      }
+    }
+
     return {
-      downloadUrl,
+      downloadUrl: finalDownloadUrl,
       sizeResult: parsedSize
         ? {
             status: CONFIG.SIZE_STATUS.KNOWN,
@@ -680,7 +734,7 @@ async function handleShowNotification(request, sendResponse) {
         message: notification.message,
         priority: 1
       });
-      
+
       sendResponse({ success: true });
     } catch (error) {
       console.error('Notification failed:', error);
@@ -714,14 +768,14 @@ async function handleUpdateStats(request, sendResponse) {
         if (!completedUrls.includes(url)) {
           completedUrls.push(url);
         }
-        
+
         // Remove from failed if present
         const failedIndex = failedUrls.findIndex(f => f.url === url);
         if (failedIndex !== -1) {
           failedUrls.splice(failedIndex, 1);
           stats.failedDownloads = Math.max(0, stats.failedDownloads - 1);
         }
-        
+
         stats.successfulDownloads++;
         stats.totalDownloads++;
       } else if (type === 'failure') {
