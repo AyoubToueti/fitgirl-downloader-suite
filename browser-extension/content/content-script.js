@@ -678,12 +678,18 @@ class FitGirlDownloader {
 if (!window.fitGirlDownloaderInstance) {
   window.fitGirlDownloaderInstance = new FitGirlDownloader();
 
-  // Cleanup on page unload
+  // On unload only flush pending storage writes. Never tear down the DOM UI
+  // here: FDM-style download hand-offs navigate the top document to a
+  // Content-Disposition attachment, and Chrome fires unload events for that
+  // attempt even though the document survives. Destroying the UI would leave
+  // a live page with no extension UI until the user reloads.
   window.addEventListener('beforeunload', () => {
-    if (window.fitGirlDownloaderInstance) {
-      window.fitGirlDownloaderInstance.destroy();
-      window.fitGirlDownloaderInstance = null;
-      window.fitGirlDownloaderInitialized = false;
+    const instance = window.fitGirlDownloaderInstance;
+    if (!instance) return;
+    try {
+      instance.flushPendingStorageWrites(true);
+    } catch (e) {
+      // Storage may already be unavailable during unload; nothing to do.
     }
   });
 }
