@@ -2,6 +2,60 @@
 
 All notable changes to the FitGirl FDM Downloader Extension will be documented in this file.
 
+## [0.2.0] - 2026-10-31
+
+### 🚀 New fuckingfast.co interface support
+
+Rewritten for the 2026 fuckingfast.co page redesign. Credit to the
+[`fistgirl`](https://github.com/sagarchaulagai/fistgirl) FDM add-on for proving
+the new server contract.
+
+### 📡 New Download Flow
+
+- **Direct HTMX POST**: The background service worker now POSTs an empty body
+  to `https://fuckingfast.co/f/<id>/go` and reads the direct download URL from
+  the `HX-Redirect` response header. No page interaction needed — bulk
+  downloads from paste pages work without navigating anywhere.
+- **No warm-up required**: Verified live that the `/go` endpoint needs no
+  cookies, no `Origin`/`Referer`, and no HTMX headers.
+- **Page fetch demoted**: The HTML GET is now only a best-effort side channel
+  (size parsing + legacy pattern fallback); a 403 from Cloudflare on the GET
+  is tolerated and non-fatal.
+
+### 🗑️ Removed
+
+- **Turnstile gate**: Removed the `window.turnstileToken` checks — the new
+  page has no interactive captcha widget, so the old gate dead-ended every
+  download attempt with "Captcha Required".
+- **`window.dlCleared` two-click simulation**: Replaced with detection of
+  whether the HTMX POST actually fired (`htmx:beforeRequest`); the page click
+  fallback auto-clicks again when the site's ad interceptor consumed the
+  first click.
+- Legacy `/f/<id>/dl` URL-pattern fallback (superseded by the `/go` POST).
+
+### 🐛 Bug Fixes
+
+- **Extension UI vanished after downloads**: The `beforeunload` handler tore
+  down the whole UI (modal, "Open Downloader" trigger, file list). Download
+  hand-off navigations fire unload events even when the document survives,
+  leaving a live page with no UI until reload. Unload now only flushes pending
+  storage writes; DOM UI is never stripped.
+
+### ✨ Added
+
+- **Download delivery mode** (popup setting): `Hand-off (FDM / download
+  manager)` — default — hands the direct URL to the normal navigation flow
+  (Content-Disposition attachment), which external download-manager browser
+  hooks intercept reliably; `Browser downloads API (direct)` keeps the old
+  `chrome.downloads` path. Applies to the next download without reload.
+- `/go` POST is now the primary extraction strategy; the old page-click flow
+  (`a.link-button` + ad two-click handling) is kept only as an on-page
+  fallback when background extraction fails.
+- Click fallback restricted to files that are actually the current page
+  (`isCurrentFilePage`), fixing a correctness hole in bulk flows.
+
+---
+
 ## [0.0.2] - 2025-11-24
 
 ### 🚀 Performance Optimization Release
