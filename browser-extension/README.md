@@ -297,7 +297,7 @@ chrome.storage.local.clear();
 - **Main Repository**: [fitgirl-downloader-suite](../)
 - **Browser Automation**: [../browser-automation/](../browser-automation/)
 - **Tampermonkey Script**: [../tampermonkey-script/](../tampermonkey-script/)
-- **Python CloudScraper**: [../python-cloudscraper/](../python-cloudscraper/)
+- **Python Downloader**: [../python-downloader/](../python-downloader/)
 
 ---
 
