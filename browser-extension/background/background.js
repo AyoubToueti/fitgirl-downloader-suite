@@ -14,8 +14,9 @@ try {
       DOWNLOAD_STATS: 'download_stats'
     },
     PATTERNS: {
-      WINDOW_OPEN_REGEX: /window\.open\(["']([^"']+\/dl\/[^"']+)["']/
-    }
+          WINDOW_OPEN_REGEX: /window\.open\(["']([^"']+\/dl\/[^"']+)["']/,
+          FUCKINGFAST_FILE_REGEX: /fuckingfast\.co\/(?:f\/)?([a-zA-Z0-9_-]+)/
+        }
   };
 }
 
@@ -118,9 +119,18 @@ async function handleExtractDownloadUrl(request, sendResponse) {
 
       console.log('Extracted download URL:', parsed.downloadUrl);
       sendResponse({ success: true, downloadUrl: parsed.downloadUrl });
-    } else {
-      throw new Error('No /dl/ URL found in page');
+      return;
     }
+
+        // Fallback: extract file ID from URL pattern when page fetch yields no result
+        const urlFallback = extractDownloadUrlFromUrlPattern(url);
+        if (urlFallback) {
+          setUrlCacheEntry(url, urlFallback);
+          sendResponse({ success: true, downloadUrl: urlFallback });
+          return;
+        }
+
+        throw new Error('No download URL found');
   } catch (error) {
     if (error.name === 'AbortError') {
       console.error('Request timeout');
@@ -130,6 +140,22 @@ async function handleExtractDownloadUrl(request, sendResponse) {
       sendResponse({ success: false, error: error.message });
     }
   }
+}
+
+/**
+ * Try to construct a download URL from the fuckingfast.co URL pattern.
+ * Extracts file ID and builds /f/{id}/dl as fallback when page fetch fails.
+ */
+function extractDownloadUrlFromUrlPattern(url) {
+  const pattern = CONFIG.PATTERNS.FUCKINGFAST_FILE_REGEX;
+  if (!pattern) return null;
+  const match = url.match(pattern);
+  if (match) {
+    const fileId = match[1];
+    if (fileId === 'f') return null;
+    return 'https://fuckingfast.co/f/' + fileId + '/dl';
+  }
+  return null;
 }
 
 function setUrlCacheEntry(url, downloadUrl) {
@@ -241,6 +267,152 @@ function parseDownloadUrlFromHtml(html) {
   return null;
 }
 
+// Non-file routes on fuckingfast.co that look like single-segment paths
+const FUCKINGFAST_SITE_ROUTES = new Set([
+  'index', 'speedtest', 'help', 'privacy', 'terms', 'contact', 'login',
+  'logout', 'register', 'account', 'upload', 'faq', 'about', 'api'
+]);
+
+/**
+ * Derive the fuckingfast.co file id from a file page URL like
+ * https://fuckingfast.co/<id>#<filename>. Returns null for anything else
+ * (dl.fuckingfast.co direct links, site pages, URLs with extra segments).
+ */
+function deriveFuckingFastFileId(url) {
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname;
+    if (host !== 'fuckingfast.co' && !host.endsWith('.fuckingfast.co')) {
+      return null;
+    }
+    if (host.startsWith('dl.')) {
+      return null;
+    }
+    const segments = parsed.pathname.split('/').filter(Boolean);
+    if (segments.length !== 1) {
+      return null;
+    }
+    const id = segments[0];
+    if (FUCKINGFAST_SITE_ROUTES.has(id.toLowerCase())) {
+      return null;
+    }
+    return /^[A-Za-z0-9_-]{6,}$/.test(id) ? id : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * Resolve a direct download URL via the new HTMX interface:
+ * empty-body POST to https://fuckingfast.co/f/<id>/go -> HX-Redirect header.
+ *
+ * The server answers with HX-Redirect even on non-2xx statuses, and it does
+ * not require any specific headers or a warmed cookie jar, so a plain
+ * service-worker fetch is sufficient (cookies are attached automatically
+ * thanks to host_permissions).
+ */
+async function postFuckingFastGo(url, signal) {
+  const fileId = deriveFuckingFastFileId(url);
+  if (!fileId) {
+    return null;
+  }
+
+  const postUrl = 'https://fuckingfast.co/f/' + fileId + '/go';
+  console.log('POSTing to HTMX go endpoint:', postUrl);
+
+  const response = await fetch(postUrl, {
+    method: 'POST',
+    body: '',
+    signal,
+    headers: {
+      'Accept': '*/*',
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'HX-Request': 'true',
+      'HX-Current-URL': url,
+      'HX-Target': 'body'
+    }
+  });
+
+  // HX-Redirect is returned on the happy path (200); fall back to a standard
+  // Location header just in case the server ever switches to a plain redirect.
+  const redirect = response.headers.get('HX-Redirect') || response.headers.get('Location');
+  if (redirect && redirect.trim()) {
+    return redirect.trim();
+  }
+
+  console.log('No HX-Redirect in response; status', response.status);
+  return null;
+}
+
+/**
+ * GET a fuckingfast file page and parse size/stat information plus legacy
+ * download-url patterns. The GET can legitimately fail (Cloudflare 403 for
+ * non-interactive clients); callers must tolerate a null html.
+ */
+async function fetchFuckingFastPageHtml(url, signal) {
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      signal
+    });
+
+    if (!response.ok) {
+      return {
+        html: null,
+        status: response.status
+      };
+    }
+
+    return {
+      html: await response.text(),
+      status: response.status
+    };
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      throw error;
+    }
+    console.warn('Page GET failed (non-fatal):', error.message);
+    return { html: null, status: null };
+  }
+}
+
+/**
+ * Fallback resolution using the page HTML: try the HTMX POST path found in the
+ * markup, then the legacy window.open('/dl/...') pattern.
+ */
+async function resolveDownloadUrlFromHtml(html, baseUrl, signal) {
+  const parsedUrlData = parseDownloadUrlFromHtml(html);
+  if (parsedUrlData && parsedUrlData.type === 'direct') {
+    return parsedUrlData.url;
+  }
+
+  if (parsedUrlData && parsedUrlData.type === 'htmx_post') {
+    try {
+      const postUrl = new URL(parsedUrlData.path, new URL(baseUrl)).href;
+      const postResponse = await fetch(postUrl, {
+        method: 'POST',
+        signal,
+        headers: {
+          'Accept': '*/*',
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'HX-Request': 'true',
+          'HX-Current-URL': baseUrl,
+          'HX-Target': 'body'
+        }
+      });
+      const redirect = postResponse.headers.get('HX-Redirect') ||
+                       postResponse.headers.get('Location');
+      if (redirect && redirect.trim()) {
+        return redirect.trim();
+      }
+    } catch (error) {
+      console.warn('Legacy HTMX POST resolution failed:', error.message);
+    }
+  }
+
+  return null;
+}
+
 function createAbortControllerWithTimeout(timeoutMs, parentSignal) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
@@ -326,7 +498,8 @@ async function extractFileSizeFromPage(url, parentSignal) {
   try {
     const parsed = await awaitWithParentAbort(getOrCreatePageDerivedDataRequest(url, {
       timeoutMs,
-      parentSignal
+      parentSignal,
+      skipGoPost: true
     }), parentSignal);
 
     if (parsed.downloadUrl) {
@@ -359,87 +532,59 @@ async function extractFileSizeFromPage(url, parentSignal) {
 async function fetchPageDerivedData(url, options = {}) {
   const timeoutMs = Number(options.timeoutMs) || 12000;
   const parentSignal = options.parentSignal;
-  const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
 
   const { controller, cleanup } = createAbortControllerWithTimeout(timeoutMs, parentSignal);
   try {
-    const response = await fetch(url, {
-      method: 'GET',
-      signal: controller.signal,
-      headers: {
-        'User-Agent': userAgent
-      }
-    });
+    // Fast path: direct POST to /f/<id>/go (new HTMX interface). No page GET
+    // is required; the server replies with the direct URL in HX-Redirect.
+    // In parallel, best-effort GET of the page for size/stat parsing and the
+    // legacy resolution path. Size-only jobs can skip the download POST.
+    const skipGoPost = Boolean(options.skipGoPost);
+    const [directResult, pageResult] = await Promise.allSettled([
+      skipGoPost ? Promise.resolve(null) : postFuckingFastGo(url, controller.signal),
+      fetchFuckingFastPageHtml(url, controller.signal)
+    ]);
 
-    if (!response.ok) {
-      return {
-        downloadUrl: null,
-        sizeResult: {
-          status: CONFIG.SIZE_STATUS.UNKNOWN,
-          bytes: null,
-          source: 'http-status',
-          error: `HTTP ${response.status}`
-        }
-      };
-    }
+    const pageHtml = (pageResult.status === 'fulfilled') ? (pageResult.value?.html || null) : null;
+    const pageStatus = (pageResult.status === 'fulfilled') ? (pageResult.value?.status ?? null) : null;
 
-    const html = await response.text();
-    const parsedUrlData = parseDownloadUrlFromHtml(html);
-    const parsedSize = parseSizeFromHtml(html);
-
-    let finalDownloadUrl = null;
-
-    if (parsedUrlData) {
-      if (parsedUrlData.type === 'direct') {
-        finalDownloadUrl = parsedUrlData.url;
-      } else if (parsedUrlData.type === 'htmx_post') {
-        // Resolve the relative path to an absolute URL
-        const baseUrl = new URL(url);
-        const postUrl = new URL(parsedUrlData.path, baseUrl).href;
-
-        try {
-          // Simulate the HTMX POST request to get the redirect/download URL
-          const postResponse = await fetch(postUrl, {
-            method: 'POST',
-            signal: controller.signal,
-            headers: {
-              'User-Agent': userAgent,
-              'HX-Request': 'true'
-            }
-          });
-
-          // The server may respond with a standard redirect (Location) or HTMX redirect (HX-Redirect)
-          finalDownloadUrl = postResponse.headers.get('HX-Redirect') ||
-                             postResponse.headers.get('Location') ||
-                             postResponse.url;
-
-          // Fallback: If Cloudflare blocks the POST, construct the known direct DL pattern
-          if (!finalDownloadUrl || finalDownloadUrl.includes('challenge')) {
-            const fileId = parsedUrlData.path.match(/\/f\/([^/]+)\//)?.[1];
-            if (fileId) {
-              finalDownloadUrl = new URL(`/f/${fileId}/dl`, baseUrl).href;
-            }
+    const sizeStructure = pageHtml
+      ? (() => {
+          const parsedSize = parseSizeFromHtml(pageHtml);
+          if (!parsedSize) {
+            return {
+              status: CONFIG.SIZE_STATUS.UNKNOWN,
+              bytes: null,
+              source: 'size-not-found'
+            };
           }
-        } catch (error) {
-          console.warn('HTMX POST resolution failed, falling back to direct pattern:', error);
-          const fileId = parsedUrlData.path.match(/\/f\/([^/]+)\//)?.[1];
-          if (fileId) {
-            finalDownloadUrl = new URL(`/f/${fileId}/dl`, baseUrl).href;
-          }
-        }
-      }
-    }
-
-    return {
-      downloadUrl: finalDownloadUrl,
-      sizeResult: parsedSize
-        ? {
+          return {
             status: CONFIG.SIZE_STATUS.KNOWN,
             bytes: parsedSize.bytes,
             source: 'html-size-text',
             label: parsedSize.label
-          }
-        : null
+          };
+        })()
+      : {
+          status: CONFIG.SIZE_STATUS.UNKNOWN,
+          bytes: null,
+          source: pageStatus ? ('http-status-' + pageStatus) : 'request-error'
+        };
+
+    let finalDownloadUrl = (directResult.status === 'fulfilled') ? directResult.value : null;
+
+    if (directResult.status === 'rejected' && directResult.reason?.name !== 'AbortError') {
+      console.warn('Direct /go POST failed:', directResult.reason?.message);
+    }
+
+    // Legacy fallback: parse the GET'd HTML for hx-post / window.open patterns.
+    if (!finalDownloadUrl && pageHtml) {
+      finalDownloadUrl = await resolveDownloadUrlFromHtml(pageHtml, url, controller.signal);
+    }
+
+    return {
+      downloadUrl: finalDownloadUrl,
+      sizeResult: sizeStructure
     };
   } finally {
     cleanup();

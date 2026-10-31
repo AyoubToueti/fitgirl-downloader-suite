@@ -82,8 +82,9 @@ const CONFIG = {
     FUCKINGFAST_DL: '/dl/',
     FITGIRL_SITE: 'fitgirl-repacks.site',
     WINDOW_OPEN_REGEX: /window\.open\(["']([^"']+\/dl\/[^"']+)["']/,
-    HTMX_POST_REGEX: /hx-post=["']([^"']+\/go)["']/i
-  }
+    HTMX_POST_REGEX: /hx-post=["']([^"']+\/go)["']/i,
+        FUCKINGFAST_FILE_REGEX: /fuckingfast\.co\/(?:f\/)?([a-zA-Z0-9_-]+)/
+      }
 };
 
 // Make CONFIG available globally for service workers and content scripts
