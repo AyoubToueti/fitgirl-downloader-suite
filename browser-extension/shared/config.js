@@ -30,6 +30,17 @@ const CONFIG = {
     PAGE_STATE_VERSION: 'page_state_version'
   },
 
+  // Download delivery mode:
+  // 'native' = hand the direct URL to the page navigation flow (Content-
+  //            Disposition attachment). External download managers with a
+  //            browser hook (FDM etc.) intercept these reliably.
+  // 'api'    = chrome.downloads API (browser downloader, controlled filenames)
+  DOWNLOAD_METHODS: {
+    NATIVE: 'native',
+    API: 'api'
+  },
+  DEFAULT_DOWNLOAD_METHOD: 'native',
+
   // UI mode settings
   UI_MODES: {
     MODAL: 'modal',

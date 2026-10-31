@@ -100,6 +100,20 @@
       <p class="settings-hint" id="ui-mode-status">Mode applies after page reload.</p>
     </div>
 
+    <!-- Download Delivery -->
+    <div class="popup-settings">
+      <div class="settings-title">Download Delivery</div>
+      <label class="ui-mode-option" for="dl-method-native">
+        <input type="radio" id="dl-method-native" name="dl-method" value="native">
+        <span>Hand-off (FDM / download manager)</span>
+      </label>
+      <label class="ui-mode-option" for="dl-method-api">
+        <input type="radio" id="dl-method-api" name="dl-method" value="api">
+        <span>Browser downloads API (direct)</span>
+      </label>
+      <p class="settings-hint" id="dl-method-status">Hand-off lets external download manager hooks (e.g. FDM) intercept.</p>
+    </div>
+
     <!-- Failed URLs List (hidden by default) -->
     <div class="popup-failed-list" id="failed-list" style="display: none;">
       <div class="failed-header">

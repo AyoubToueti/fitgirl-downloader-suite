@@ -60,6 +60,7 @@ class FitGirlDownloader {
 
     // Modal-first UI state for FitGirl pages
     this.uiMode = CONFIG.DEFAULT_UI_MODE || 'modal';
+    this.downloadMethod = CONFIG.DEFAULT_DOWNLOAD_METHOD || 'native';
     this.modalUI = typeof FitGirlModalUI === 'function' ? new FitGirlModalUI(this) : null;
     this.inlineUI = typeof FitGirlInlineUI === 'function' ? new FitGirlInlineUI(this) : null;
 
@@ -105,6 +106,7 @@ class FitGirlDownloader {
     document.addEventListener('visibilitychange', this.handleVisibilityChange);
     window.addEventListener('pagehide', this.handlePageHide);
     await this.loadUIModePreference();
+    await this.loadDownloadMethodPreference();
     await this.checkPauseState();
     this.tryInitialize();
     this.setupMutationObserver();
@@ -121,6 +123,11 @@ class FitGirlDownloader {
   async loadUIModePreference() {
     if (!this.pageUIManager) return;
     await this.pageUIManager.loadUIModePreference();
+  }
+
+  async loadDownloadMethodPreference() {
+    if (!this.pageUIManager) return;
+    await this.pageUIManager.loadDownloadMethodPreference();
   }
 
   tryInitialize(attempt = 1) {
@@ -670,7 +677,7 @@ class FitGirlDownloader {
 // Initialize only if not already initialized
 if (!window.fitGirlDownloaderInstance) {
   window.fitGirlDownloaderInstance = new FitGirlDownloader();
-  
+
   // Cleanup on page unload
   window.addEventListener('beforeunload', () => {
     if (window.fitGirlDownloaderInstance) {

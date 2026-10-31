@@ -68,7 +68,11 @@ function cacheElements() {
     uiModeModal: document.getElementById('ui-mode-modal'),
     uiModeInline: document.getElementById('ui-mode-inline'),
     uiModeStatus: document.getElementById('ui-mode-status'),
-    uiModeInputs: Array.from(document.querySelectorAll('input[name="ui-mode"]'))
+    uiModeInputs: Array.from(document.querySelectorAll('input[name="ui-mode"]')),
+    dlMethodNative: document.getElementById('dl-method-native'),
+    dlMethodApi: document.getElementById('dl-method-api'),
+    dlMethodStatus: document.getElementById('dl-method-status'),
+    dlMethodInputs: Array.from(document.querySelectorAll('input[name="dl-method"]'))
   };
 }
 
@@ -88,6 +92,14 @@ const UI_MODES = {
 
 const DEFAULT_UI_MODE = (typeof CONFIG !== 'undefined' && CONFIG.DEFAULT_UI_MODE) || UI_MODES.MODAL;
 
+const DOWNLOAD_METHODS = {
+  NATIVE: (typeof CONFIG !== 'undefined' && CONFIG.DOWNLOAD_METHODS && CONFIG.DOWNLOAD_METHODS.NATIVE) || 'native',
+  API: (typeof CONFIG !== 'undefined' && CONFIG.DOWNLOAD_METHODS && CONFIG.DOWNLOAD_METHODS.API) || 'api'
+};
+
+const DEFAULT_DOWNLOAD_METHOD =
+  (typeof CONFIG !== 'undefined' && CONFIG.DEFAULT_DOWNLOAD_METHOD) || DOWNLOAD_METHODS.NATIVE;
+
 // Initialize popup
 async function init() {
   console.log('FitGirl Downloader: Popup initializing...');
@@ -99,7 +111,8 @@ async function init() {
   await Promise.all([
     loadStats(),
     checkPauseState(),
-    loadUIModePreference()
+    loadUIModePreference(),
+    loadDownloadMethodPreference()
   ]);
   
   bindEventHandlers();
@@ -297,6 +310,17 @@ function bindEventHandlers() {
     });
     input.dataset.bound = 'true';
   });
+
+  // Download delivery controls
+  elements.dlMethodInputs.forEach((input) => {
+    if (input.dataset.bound) return;
+    input.addEventListener('change', (event) => {
+      if (event.target.checked) {
+        saveDownloadMethodPreference(event.target.value);
+      }
+    });
+    input.dataset.bound = 'true';
+  });
 }
 
 function normalizeUIMode(mode) {
@@ -348,6 +372,60 @@ async function loadUIModePreference() {
   const mode = normalizeUIMode(prefs.uiMode);
 
   applyUIModeToUI(mode);
+}
+
+function normalizeDownloadMethod(method) {
+  if (method === DOWNLOAD_METHODS.API) return DOWNLOAD_METHODS.API;
+  return DOWNLOAD_METHODS.NATIVE;
+}
+
+function applyDownloadMethodToUI(method) {
+  const normalized = normalizeDownloadMethod(method);
+  if (elements.dlMethodNative) {
+    elements.dlMethodNative.checked = normalized === DOWNLOAD_METHODS.NATIVE;
+  }
+  if (elements.dlMethodApi) {
+    elements.dlMethodApi.checked = normalized === DOWNLOAD_METHODS.API;
+  }
+}
+
+async function loadDownloadMethodPreference() {
+  const storage = await getStorageViaBackground([STORAGE_KEYS.USER_PREFERENCES]);
+  const prefs = storage[STORAGE_KEYS.USER_PREFERENCES] || {};
+  applyDownloadMethodToUI(normalizeDownloadMethod(prefs.downloadMethod));
+}
+
+async function saveDownloadMethodPreference(method) {
+  const normalized = normalizeDownloadMethod(method);
+
+  try {
+    const storage = await getStorageViaBackground([STORAGE_KEYS.USER_PREFERENCES]);
+    const prefs = storage[STORAGE_KEYS.USER_PREFERENCES] || {};
+    const nextPrefs = {
+      ...prefs,
+      downloadMethod: normalized
+    };
+
+    await setStorageViaBackground({
+      [STORAGE_KEYS.USER_PREFERENCES]: nextPrefs
+    });
+
+    applyDownloadMethodToUI(normalized);
+
+    if (elements.dlMethodStatus) {
+      elements.dlMethodStatus.textContent = normalized === DOWNLOAD_METHODS.NATIVE ?
+        'Hand-off enabled: your download manager hook intercepts the next download.' :
+        'Browser downloader enabled (chrome.downloads API).';
+    }
+    showStatus('Download delivery saved', 'success');
+  } catch (error) {
+    console.error('Error saving download method:', error);
+    applyDownloadMethodToUI(DEFAULT_DOWNLOAD_METHOD);
+    if (elements.dlMethodStatus) {
+      elements.dlMethodStatus.textContent = 'Failed to save. Try again.';
+    }
+    showStatus('Failed to save download delivery', 'error');
+  }
 }
 
 async function reloadActiveTabAfterModeSwitch() {

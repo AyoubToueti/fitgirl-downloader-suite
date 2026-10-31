@@ -40,6 +40,34 @@ class FitGirlPageUIManager {
     }
   }
 
+  normalizeDownloadMethod(method) {
+    if (method === CONFIG.DOWNLOAD_METHODS.API) {
+      return CONFIG.DOWNLOAD_METHODS.API;
+    }
+    return CONFIG.DOWNLOAD_METHODS.NATIVE;
+  }
+
+  async loadDownloadMethodPreference() {
+    this.downloader.downloadMethod = this.normalizeDownloadMethod(CONFIG.DEFAULT_DOWNLOAD_METHOD);
+
+    try {
+      const response = await browserAPI.runtime.sendMessage({
+        action: 'getStorage',
+        keys: [CONFIG.STORAGE_KEYS.USER_PREFERENCES]
+      });
+
+      if (!response?.success) {
+        return;
+      }
+
+      const prefs = response.data[CONFIG.STORAGE_KEYS.USER_PREFERENCES] || {};
+      this.downloader.downloadMethod = this.normalizeDownloadMethod(prefs.downloadMethod);
+    } catch (error) {
+      console.error('FitGirl Downloader: Failed to load download method preference', error);
+      this.downloader.downloadMethod = this.normalizeDownloadMethod(CONFIG.DEFAULT_DOWNLOAD_METHOD);
+    }
+  }
+
   tryInitialize(attempt = 1) {
     console.log(`FitGirl Downloader: Initialization attempt ${attempt}`);
 
@@ -176,9 +204,9 @@ class FitGirlPageUIManager {
     const isModalMode = this.isModalMode();
     uiContainer.innerHTML = `
       <div class="fg-header">
-        <h3 class="fg-title">🎮 FitGirl Downloader</h3>
+        <h3 class="fg-title">\u{1F3AE} FitGirl Downloader</h3>
         <button class="fg-btn fg-btn-secondary fg-toggle-links">
-          ${isModalMode ? '✖ Close Downloader' : '👁️ Show Original Links'}
+          ${isModalMode ? '\u2716 Close Downloader' : '\u{1F441}\uFE0F Show Original Links'}
         </button>
       </div>
 
@@ -189,10 +217,10 @@ class FitGirlPageUIManager {
 
         <div class="fg-control-group">
           <button class="fg-btn fg-btn-primary fg-start-btn">
-            🚀 Start Download
+            \u{1F680} Start Download
           </button>
           <button class="fg-btn fg-btn-danger fg-stop-btn" style="display: none;">
-            ⏹️ Stop
+            \u23F9\uFE0F Stop
           </button>
           <label class="fg-btn fg-btn-sm fg-toggle-select-control" title="Toggle all selectable files">
             <input type="checkbox" class="fg-toggle-select-checkbox" aria-label="Toggle all files">
@@ -202,8 +230,8 @@ class FitGirlPageUIManager {
             <input type="checkbox" class="fg-size-unknown-checkbox" aria-label="Recalculate only unknown sizes" checked>
             <span class="fg-toggle-select-text">Unknown only</span>
           </label>
-          <button class="fg-btn fg-btn-sm fg-btn-secondary fg-calc-sizes-btn">📏 Calculate Sizes</button>
-          <button class="fg-btn fg-btn-sm fg-btn-danger fg-cancel-sizes-btn" style="display: none;">✖ Cancel Size Scan</button>
+          <button class="fg-btn fg-btn-sm fg-btn-secondary fg-calc-sizes-btn">\u{1F4CF} Calculate Sizes</button>
+          <button class="fg-btn fg-btn-sm fg-btn-danger fg-cancel-sizes-btn" style="display: none;">\u2716 Cancel Size Scan</button>
           <button class="fg-btn fg-btn-sm fg-reset-selection">Reset</button>
         </div>
 
@@ -223,7 +251,7 @@ class FitGirlPageUIManager {
       </div>
     `;
 
-    if (container.classList && container.classList.contains('fg-ui-modal')) {
+    if (container.classList?.contains('fg-ui-modal')) {
       container.appendChild(uiContainer);
     } else {
       container.insertBefore(uiContainer, container.firstChild);
@@ -241,7 +269,7 @@ class FitGirlPageUIManager {
     const { calcSizesBtn, cancelSizesBtn, sizeUnknownOnlyCheckbox } = this.downloader.cachedElements;
     if (calcSizesBtn) {
       calcSizesBtn.disabled = isRunning;
-      calcSizesBtn.textContent = isRunning ? '📏 Calculating...' : '📏 Calculate Sizes';
+      calcSizesBtn.textContent = isRunning ? '\u{1F4CF} Calculating...' : '\u{1F4CF} Calculate Sizes';
     }
 
     if (cancelSizesBtn) {
@@ -307,7 +335,7 @@ class FitGirlPageUIManager {
   addDirectDownloadButton() {
     const button = document.createElement('button');
     button.className = 'fg-float-btn';
-    button.innerHTML = '🚀 Send to Downloader';
+    button.innerHTML = '\u{1F680} Send to Downloader';
     button.addEventListener('click', () => {
       this.downloader.initiateDownload(window.location.href, window.location.href);
     });
@@ -317,18 +345,51 @@ class FitGirlPageUIManager {
   addExtractButton() {
     const button = document.createElement('button');
     button.className = 'fg-float-btn';
-    button.innerHTML = '🔍 Extract & Download';
-    button.addEventListener('click', async () => {
-      try {
-        const downloadUrl = await this.downloader.extractRealDownloadUrl(window.location.href);
-        if (downloadUrl) {
-          await this.downloader.initiateDownload(downloadUrl, window.location.href);
-        }
-      } catch (error) {
-        this.downloader.showNotification('❌ Error', error.message);
-      }
+    button.innerHTML = '\u{1F50D} Extract & Download';
+    button.addEventListener('click', () => {
+      this.triggerPageDownload();
     });
     document.body.appendChild(button);
+  }
+
+  /**
+   * Trigger a download for the file page we are currently on.
+   *
+   * Primary: background extraction (service worker POSTs /f/<id>/go and uses
+   * the HX-Redirect URL, no page interaction needed).
+   * Fallback: clicking the page's native DOWNLOAD button (`a.link-button`,
+   * hx-post="/f/<id>/go"). The first click may be consumed by the site's ad
+   * interceptor; the download manager auto-clicks again when no HTMX POST
+   * fired. htmx follows the HX-Redirect, which starts the native download.
+   */
+  triggerPageDownload() {
+    this.tryBackgroundExtraction();
+  }
+
+  async tryBackgroundExtraction() {
+    try {
+      const downloadUrl = await this.downloader.extractRealDownloadUrl(window.location.href);
+      if (downloadUrl) {
+        await this.downloader.initiateDownload(downloadUrl, window.location.href);
+        return;
+      }
+
+      throw new Error('No download URL found');
+    } catch (error) {
+      // Fallback: use the page's own DOWNLOAD button flow
+      if (this.triggerPageButtonFallback()) {
+        return;
+      }
+      this.downloader.showNotification('\u274C Error', error.message);
+    }
+  }
+
+  triggerPageButtonFallback() {
+    if (this.downloader.downloadManager?.tryTriggerPageDownload()) {
+      this.downloader.updateStatus('\u{1F4E5} Download triggered via page button');
+      return true;
+    }
+    return false;
   }
 }
 
