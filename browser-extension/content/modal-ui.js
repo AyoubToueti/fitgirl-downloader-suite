@@ -76,7 +76,7 @@ class FitGirlModalUI {
 
     if (!this.modalKeydownHandler) {
       this.modalKeydownHandler = (event) => {
-        if (event.key === 'Escape' && this.modalOverlay && this.modalOverlay.classList.contains('is-open')) {
+        if (event.key === 'Escape' && this.modalOverlay?.classList.contains('is-open')) {
           this.close();
         }
       };
@@ -129,8 +129,8 @@ class FitGirlModalUI {
   teardown() {
     this.close();
 
-    if (this.triggerButton && this.triggerButton.parentElement) {
-      this.triggerButton.parentElement.removeChild(this.triggerButton);
+    if (this.triggerButton?.parentElement) {
+      this.triggerButton.remove();
     }
 
     this.triggerButton = null;
@@ -139,8 +139,8 @@ class FitGirlModalUI {
   destroy() {
     this.close();
 
-    if (this.modalOverlay && this.modalOverlay.parentElement) {
-      this.modalOverlay.parentElement.removeChild(this.modalOverlay);
+    if (this.modalOverlay?.parentElement) {
+      this.modalOverlay.remove();
     }
     this.modalOverlay = null;
     this.modalBody = null;
@@ -150,8 +150,8 @@ class FitGirlModalUI {
       this.modalKeydownHandler = null;
     }
 
-    if (this.triggerButton && this.triggerButton.parentElement) {
-      this.triggerButton.parentElement.removeChild(this.triggerButton);
+    if (this.triggerButton?.parentElement) {
+      this.triggerButton.remove();
     }
     this.triggerButton = null;
   }
