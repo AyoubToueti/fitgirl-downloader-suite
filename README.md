@@ -9,12 +9,12 @@ Choose the approach that fits your needs:
 | **`browser-extension`** ⭐ | Chrome Extension (MV3) | Users who want **one-click native browser integration** with pause/resume, file selection, and retry |
 | **`Tampermonkey-userscript`** | Userscript (JS) | Users who prefer **userscripts** and already have Tampermonkey installed |
 | **`browser-automation`** | Node.js + Puppeteer | Users who want **realistic browser interaction** and automation scripts |
-| **`python-cloudscraper`** | Python + cloudscraper | Users who want **speed, simplicity, and minimal resource usage** — no browser needed |
+| **`python-downloader`** | Python (stdlib only) | Users who want **speed, simplicity, and minimal resource usage** — no browser needed, works with any download manager |
 
 All tools:
 - Work with Cloudflare-protected pages
 - Handle multiple file parts automatically
-- Send downloads to **Free Download Manager (FDM)** or your **default browser downloader**
+- Send downloads to your **download manager** (FDM, aria2, wget, or anything you have)
 - Support retry and error handling
 
 ---
@@ -83,24 +83,23 @@ A **browser automation tool** using **Puppeteer**:
 
 ---
 
-### 4. [`python-cloudscraper`](./python-cloudscraper/)
-A **lightweight Python script** for headless operation:
-- Fetches page HTML directly (no browser)
-- Uses `cloudscraper` to bypass Cloudflare
-- Extracts the real `/dl/...` download URL via regex
-- Sends directly to **FDM via command line**
+### 4. [`python-downloader`](./python-downloader/)
+A **standalone terminal app** for headless operation:
+- Resolves downloads via a direct `POST /f/<id>/go` (no page fetch, no captcha)
+- Works with **Python standard library only** — zero third-party dependencies
+- Hands links to **your download manager** — GUI managers (auto-detected, launched with the URL), terminal managers (`aria2`/`wget`/`curl` run inline with progress), or **any binary** you point at
+- Interactive menu with paste-file scanning, dry-run mode, and downloader setup
 - Fast and headless operation
-- Minimal dependencies
 
 ✅ **Use this if you:**
 - Want **fast, silent, headless** operation
 - Don't need a browser window
 - Prefer **Python simplicity**
-- Have FDM installed and want **instant queueing**
+- Use **any download manager** (or just `wget`/`curl`) and want **instant queueing**
 - Need to integrate into other Python workflows
 - Running on servers or headless systems
 
-➡️ [View Python README](./python-cloudscraper/README.md)
+➡️ [View Python README](./python-downloader/README.md)
 
 ---
 
@@ -133,10 +132,10 @@ node main.js paste-file.txt
 
 ### Python Script
 ```bash
-cd python-cloudscraper
-pip install -r requirements.txt
-python fitgirl_fdm_downloader.py paste-file.txt
+cd python-downloader
+python fitgirl_downloader.py paste-file.txt
 ```
+No arguments (`python fitgirl_downloader.py`) opens an interactive menu; `--dry-run` previews resolved links.
 
 ---
 
@@ -144,7 +143,7 @@ python fitgirl_fdm_downloader.py paste-file.txt
 
 | Feature | Browser Extension | Tampermonkey | Browser Automation | Python Script |
 |---------|------------------|--------------|-------------------|---------------|
-| **Installation** | Load unpacked | Paste script | npm install | pip install |
+| **Installation** | Load unpacked | Paste script | npm install | ✅ None (stdlib) |
 | **UI** | Modern, native | Injected | Browser window | CLI only |
 | **Pause/Resume** | ✅ Yes | ❌ No | ❌ No | ❌ No |
 | **File Selection** | ✅ Checkboxes | ❌ All files | ❌ All files | ❌ All files |
@@ -154,7 +153,7 @@ python fitgirl_fdm_downloader.py paste-file.txt
 | **Browser Required** | Chrome/Edge | Any | Chrome/Edge | ❌ No |
 | **Headless** | ❌ No | ❌ No | ⚠️ Optional | ✅ Yes |
 | **Real Browser Profile** | ✅ Yes | ✅ Yes | ✅ Yes | ❌ N/A |
-| **FDM Integration** | ⚠️ Default handler | ⚠️ Default handler | ⚠️ Default handler | ✅ Direct CLI |
+| **FDM Integration** | ⚠️ Default handler | ⚠️ Default handler | ⚠️ Default handler | ✅ Any download manager (CLI/GUI) |
 | **Cross-Browser** | ❌ Chrome/Edge only | ✅ All browsers | ❌ Chromium only | ✅ Universal |
 
 ---
