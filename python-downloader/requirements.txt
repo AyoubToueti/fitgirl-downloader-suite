@@ -1,0 +1,4 @@
+# No third-party dependencies — Python 3 standard library only.
+# (Previous versions needed `cloudscraper`; the new fuckingfast interface
+# answers a simple POST with a browser User-Agent, so scrapping tools are no
+# longer required.)
