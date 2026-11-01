@@ -2,6 +2,25 @@
    Design tokens and primitives shared by the popup and the in-page UI.
    Loaded before popup.css and content/styles.css. */
 
+/* Normalise box sizing for every extension surface. Chrome's UA stylesheet
+   already sets border-box on form controls, Firefox does not, so without this
+   the same `height: 27px` on a bordered button renders 2px taller in Firefox. */
+.fg-download-ui,
+.fg-download-ui *,
+.fg-download-ui *::before,
+.fg-download-ui *::after,
+.fg-ui-modal,
+.fg-ui-modal *,
+.fg-links-modal,
+.fg-links-modal *,
+.fg-dialog,
+.fg-dialog *,
+.fg-resume-banner,
+.fg-resume-banner *,
+.fg-float-btn {
+  box-sizing: border-box;
+}
+
 :root {
   /* surfaces */
   --surface: #ffffff;
@@ -52,6 +71,15 @@
   /* elevation, overlays only */
   --shadow-overlay: 0 12px 32px rgba(16, 24, 40, 0.16);
   --shadow-float: 0 2px 8px rgba(16, 24, 40, 0.12);
+
+  /* Tell the UA which scheme the widgets are drawn in. Without this, native
+     controls (checkbox, search field, scrollbars) stay light while the panel
+     is dark, most visibly in Firefox. */
+  color-scheme: light;
+}
+
+:root[data-fg-theme="dark"] {
+  color-scheme: dark;
 }
 
 /* Explicit dark: the user picked it, so it overrides the OS preference. */
@@ -213,6 +241,122 @@
 
 @media (prefers-reduced-motion: reduce) {
   .fg-spinner {
+    animation: none;
+  }
+}
+
+/* ---------------------------------------------------------------
+   Confirmation dialog
+   Shared by the popup and the in-page UI so both replace the
+   browser's built-in confirm() with the extension's own styling.
+   --------------------------------------------------------------- */
+
+.fg-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 13000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(16, 24, 40, 0.62);
+  animation: fg-dialog-fade 0.15s ease;
+}
+
+.fg-dialog {
+  width: min(360px, 100%);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-overlay);
+  overflow: hidden;
+}
+
+.fg-dialog-header {
+  padding: 10px 12px;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.fg-dialog-body {
+  padding: 12px;
+  font-size: var(--fs-base);
+  line-height: 1.5;
+  color: var(--dim);
+}
+
+.fg-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--surface-2);
+  border-top: 1px solid var(--border);
+}
+
+.fg-dialog-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 27px;
+  padding: 0 10px;
+  font-family: var(--font);
+  font-size: var(--fs-base);
+  font-weight: 500;
+  line-height: 1;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r);
+  cursor: pointer;
+  white-space: nowrap;
+  -moz-appearance: none;
+  appearance: none;
+}
+
+.fg-dialog-btn:hover {
+  background: var(--surface-3);
+  border-color: var(--faint);
+}
+
+.fg-dialog-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.fg-dialog-btn-primary {
+  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.fg-dialog-btn-primary:hover {
+  background: var(--accent-hi);
+  border-color: var(--accent-hi);
+}
+
+.fg-dialog-btn-danger {
+  color: #fff;
+  background: var(--err);
+  border-color: var(--err);
+}
+
+.fg-dialog-btn-danger:hover {
+  background: var(--err);
+  border-color: var(--err);
+  filter: brightness(1.08);
+}
+
+@keyframes fg-dialog-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fg-dialog-overlay {
     animation: none;
   }
 }

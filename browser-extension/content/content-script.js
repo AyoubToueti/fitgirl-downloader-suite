@@ -429,9 +429,13 @@ class FitGirlDownloader {
    * cached sizes and pause state) and reload the list from scratch.
    */
   async clearDownloadPageState() {
-    const confirmed = window.confirm(
-      'Clear saved selections, skips and size results for this page? This cannot be undone.'
-    );
+    const confirmed = await this.confirmAction({
+      title: 'Clear page state',
+      message: 'This removes the saved selections, skips and size results for this page, plus this page\u2019s entries in the download history. This cannot be undone.',
+      confirmLabel: 'Clear',
+      cancelLabel: 'Cancel',
+      danger: true
+    });
     if (!confirmed) return;
 
     try {
@@ -532,6 +536,17 @@ class FitGirlDownloader {
   async clearPageState() {
     if (!this.storageManager) return;
     await this.storageManager.clearPageState();
+  }
+
+  /**
+   * Extension-styled confirmation. Falls back to the native dialog only if
+   * shared/dialog.js is missing.
+   */
+  async confirmAction(options) {
+    if (typeof FitGirlDialog !== 'undefined' && typeof FitGirlDialog.confirm === 'function') {
+      return FitGirlDialog.confirm(options);
+    }
+    return window.confirm(options.message || 'Are you sure?');
   }
 
   async checkPauseState() {
