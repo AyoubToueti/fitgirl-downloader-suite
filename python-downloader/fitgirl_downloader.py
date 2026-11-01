@@ -25,7 +25,7 @@ import json
 from pathlib import Path
 from datetime import datetime
 from functools import wraps
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import urlsplit, urlunsplit, unquote
 from urllib.request import Request, build_opener, install_opener, HTTPError, URLError
 
 # --- CONFIG ---
@@ -59,15 +59,22 @@ FUCKINGFAST_SITE_ROUTES = {
     "logout", "register", "account", "upload", "faq", "about", "api",
 }
 
-# --- Download manager registry (argv templates; "{path}"/"{url}" substituted) ---
+# --- Download manager registry ---
 # attached=True  -> run synchronously in the terminal (CLI download managers);
 #                   progress and errors are visible, completion is tracked.
 # attached=False -> launch detached (GUI download managers pick the URL up in
 #                   their own queue; we optimistically count it as sent.
+# cmds selects the argv by what is known when sending:
+#   none  -> no destination dir, no real filename
+#   dir   -> destination dir only
+#   file  -> real filename only (relative to the current directory)
+#   both  -> dir + filename
+# Placeholders: {path} manager executable, {url} direct URL, {dir} dest dir,
+# {name} plain filename, {out} directory-qualified filename (dir-aware args
+# such as wget -O / curl -o; aria2 gets {dir} + {name} separately).
 LAUNCHERS = {
     "fdm": {
         "display": "download manager",
-        "args": ["{path}", "{url}"],
         "attached": False,
         "known_paths": [
             r"C:\Program Files\Softdeluxe\Free Download Manager\fdm.exe",
@@ -76,42 +83,78 @@ LAUNCHERS = {
             "/opt/fdm/fdm",
             "/Applications/Free Download Manager.app/Contents/MacOS/fdm",
         ],
+        "cmds": {
+            "none": ["{path}"],
+            "dir": ["{path}"],
+            "file": ["{path}"],
+            "both": ["{path}"],
+        },
     },
     "xdm-open": {
         "display": "download manager",
-        "args": ["{path}", "{url}"],
         "attached": False,
         "known_paths": ["/usr/bin/xdm-open"],
+        "cmds": {
+            "none": ["{path}"],
+            "dir": ["{path}"],
+            "file": ["{path}"],
+            "both": ["{path}"],
+        },
     },
     "persepolis": {
         "display": "download manager",
-        "args": ["{path}", "{url}"],
         "attached": False,
         "known_paths": ["/usr/bin/persepolis"],
+        "cmds": {
+            "none": ["{path}"],
+            "dir": ["{path}"],
+            "file": ["{path}"],
+            "both": ["{path}"],
+        },
     },
     "uget-gtk": {
         "display": "download manager",
-        "args": ["{path}", "{url}"],
         "attached": False,
         "known_paths": ["/usr/bin/uget-gtk"],
+        "cmds": {
+            "none": ["{path}"],
+            "dir": ["{path}"],
+            "file": ["{path}"],
+            "both": ["{path}"],
+        },
     },
     "aria2c": {
         "display": "terminal download manager (aria2)",
-        "args": ["{path}", "{url}"],
         "attached": True,
         "known_paths": [],
+        "cmds": {
+            "none": ["{path}"],
+            "dir": ["{path}", "--dir", "{dir}"],
+            "file": ["{path}", "--out", "{name}"],
+            "both": ["{path}", "--dir", "{dir}", "--out", "{name}"],
+        },
     },
     "wget": {
         "display": "terminal downloader (wget)",
-        "args": ["{path}", "-c", "{url}"],
         "attached": True,
         "known_paths": [],
+        "cmds": {
+            "none": ["{path}", "-c"],
+            "dir": ["{path}", "-c", "-P", "{dir}"],
+            "file": ["{path}", "-c", "-O", "{out}"],
+            "both": ["{path}", "-c", "-O", "{out}"],
+        },
     },
     "curl": {
         "display": "terminal downloader (curl)",
-        "args": ["{path}", "-L", "-O", "{url}"],
         "attached": True,
         "known_paths": [],
+        "cmds": {
+            "none": ["{path}", "-L", "-O"],
+            "dir": ["{path}", "-L", "--output-dir", "{dir}", "-O"],
+            "file": ["{path}", "-L", "-o", "{out}"],
+            "both": ["{path}", "-L", "-o", "{out}"],
+        },
     },
 }
 
@@ -119,6 +162,8 @@ _opener = build_opener()
 install_opener(_opener)
 
 # --- ANSI helpers (degrade gracefully when not a TTY) ---
+if os.name == "nt":
+    os.system("")  # enable ANSI escape processing on Windows terminals
 _ANSI = sys.stdout.isatty() and os.environ.get("TERM", "") != "dumb"
 
 
@@ -247,13 +292,30 @@ def save_failed_url(url, error):
 
 
 def parse_paste_file(filepath):
+    """Extract (base_url, filename_fragment) pairs from a paste file.
+
+    Lines look like `- https://fuckingfast.co/<id>#<real-file-name>.rar`;
+    the fragment after `#` is the actual archive part name (verified live to
+    match the server's Content-Disposition) and falls back to None when the
+    paste omits it.
+    """
     with open(filepath, "r", encoding="utf-8") as handle:
         content = handle.read()
-    urls = re.findall(r"- (https://fuckingfast\.co/[^\s#]+)", content)
-    if not urls:
-        urls = re.findall(r"(https://fuckingfast\.co/[^\s#]+)", content)
-    print(f"✅ Parsed {len(urls)} URLs from {filepath}")
-    return urls
+
+    dashed = re.findall(r"-\s+(https://fuckingfast\.co[^#\r\n\s]*(?:#[^\r\n]+)?)", content)
+    bare = re.findall(r"(https://fuckingfast\.co[^#\r\n\s]*(?:#[^\r\n]+)?)", content)
+    lines = dashed + bare
+
+    entries = []
+    seen = set()
+    for token in lines:
+        base, _, fragment = token.partition("#")
+        if base not in seen:
+            seen.add(base)
+            entries.append((base, fragment.strip() or None))
+
+    print(f"✅ Parsed {len(entries)} URLs from {filepath}")
+    return entries
 
 
 def extract_file_id(page_url):
@@ -344,7 +406,7 @@ def make_launcher(key, path):
         "key": key,
         "display": spec["display"],
         "path": path,
-        "args": spec["args"],
+        "cmds": spec["cmds"],
         "attached": spec["attached"],
     }
 
@@ -352,26 +414,27 @@ def make_launcher(key, path):
 def load_config():
     try:
         data = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
-        if isinstance(data, dict) and isinstance(data.get("launcher"), dict):
-            return data["launcher"]
+        if isinstance(data, dict):
+            return data
     except (OSError, ValueError):
         pass
-    return None
+    return {}
 
 
-def save_config(launcher):
+def save_config(**updates):
+    """Merge partial updates into config.json (launcher / download_dir)."""
     try:
-        CONFIG_FILE.write_text(
-            json.dumps({"launcher": launcher}, indent=2),
-            encoding="utf-8",
-        )
+        current = load_config()
+        current.update(updates)
+        CONFIG_FILE.write_text(json.dumps(current, indent=2), encoding="utf-8")
     except OSError as exc:
         print(paint_warn(f"⚠️  Could not save config: {exc}"))
 
 
 def detect_launcher_by_path(path):
     """Map an explicit path to a registry entry when the binary name matches."""
-    name = Path(path).name.lower()
+    # split on both separators so Windows-style paths survive on non-Windows hosts
+    name = path.replace("\\", "/").rsplit("/", 1)[-1].lower()
     if name.endswith(".exe"):
         name = name[:-4]
     if name == "xdm" and os.path.isfile(path):
@@ -383,8 +446,13 @@ def detect_launcher_by_path(path):
         "key": "custom",
         "display": f"custom download manager ({Path(path).name})",
         "path": path,
-        "args": ["{path}", "{url}"],
         "attached": False,
+        "cmds": {
+            "none": ["{path}"],
+            "dir": ["{path}"],
+            "file": ["{path}"],
+            "both": ["{path}"],
+        },
     }
 
 
@@ -431,15 +499,17 @@ def resolve_launcher(user_path=None, remember=True):
             return None
         launcher = detect_launcher_by_path(os.path.abspath(user_path))
         if remember:
-            save_config({"path": launcher["path"], "key": launcher["key"]})
+            save_config(
+                launcher={"path": launcher["path"], "key": launcher["key"]}
+            )
         return launcher
 
     env_path = os.environ.get("FG_DOWNLOADER_PATH", "").strip()
     if env_path and os.path.isfile(env_path):
         return detect_launcher_by_path(os.path.abspath(env_path))
 
-    stored = load_config()
-    if stored and stored.get("path") and os.path.isfile(stored["path"]):
+    stored = load_config().get("launcher") or {}
+    if stored.get("path") and os.path.isfile(stored["path"]):
         stored_key = stored.get("key")
         stored_path = os.path.abspath(stored["path"])
         if stored_key == "custom" or stored_key not in LAUNCHERS:
@@ -453,34 +523,116 @@ def resolve_launcher(user_path=None, remember=True):
     if sys.stdin.isatty():
         launcher = prompt_for_launcher()
         if launcher and remember:
-            save_config({"path": launcher["path"], "key": launcher["key"]})
+            save_config(
+                launcher={"path": launcher["path"], "key": launcher["key"]}
+            )
         return launcher
 
     return None
 
 
-def launcher_argv(launcher, url):
+def sanitize_filename(name):
+    """Turn a paste fragment or Content-Disposition value into a safe filename."""
+    name = (name or "").strip()
+    if name.lower().startswith("utf-8''"):
+        name = name[7:]
+    if name.startswith(("'", '"')):
+        name = name[1:]
+    if name.endswith(("'", '"')):
+        name = name[:-1]
+    name = name.replace("\\", "_").replace("/", "_").replace("\x00", "")
+    name = os.path.basename(name) or name
+    return name.strip() or None
+
+
+def parse_content_disposition(value):
+    """Extract the filename from a Content-Disposition header value."""
+    if not value:
+        return None
+    star = re.search(r"filename\*=(?:UTF-8|utf-8)''([^;]+)", value)
+    if star:
+        return unquote(star.group(1).strip())
+    quoted = re.search(r'filename="([^"]+)"', value)
+    if quoted:
+        return quoted.group(1)
+    plain = re.search(r"filename=([^;]+)", value)
+    if plain:
+        return plain.group(1).strip()
+    return None
+
+
+def fetch_content_filename(download_url):
+    """Best-effort real filename from the hardware CDN headers.
+
+    A 1-byte ranged request returns the Content-Disposition header without
+    transferring the file. Swallow-any-failure: the caller falls back to a
+    token-named file or plain argv when this returns None.
+    """
+    request = Request(download_url, headers={
+        "User-Agent": BROWSER_UA,
+        "Range": "bytes=0-0",
+    })
+    try:
+        with _opener.open(request, timeout=TIMEOUT) as response:
+            return sanitize_filename(
+                parse_content_disposition(response.headers.get("Content-Disposition"))
+            )
+    except Exception:
+        return None
+
+
+def resolve_filename(download_url, fragment_name=None):
+    """Real filename for a resolved direct URL: paste fragment first, headers second."""
+    from_fragment = sanitize_filename(fragment_name)
+    if from_fragment:
+        return from_fragment
+    return fetch_content_filename(download_url)
+
+
+def build_launcher_argv(launcher, url, dest_dir=None, filename=None):
+    """argv for a send: pick the cmd variant by what destination info is known."""
+    if filename and dest_dir:
+        mode, subs = "both", {"dir": dest_dir, "out": os.path.join(dest_dir, filename), "name": filename}
+    elif filename:
+        mode, subs = "file", {"out": filename, "name": filename, "dir": dest_dir or ""}
+    elif dest_dir:
+        mode, subs = "dir", {"dir": dest_dir, "out": "", "name": ""}
+    else:
+        mode, subs = "none", {"dir": "", "out": "", "name": ""}
+
     argv = []
-    for token in launcher["args"]:
-        token = token.replace("{path}", launcher["path"]).replace("{url}", url)
-        argv.append(token)
+    for token in launcher["cmds"][mode]:
+        argv.append(
+            token
+            .replace("{path}", launcher["path"])
+            .replace("{url}", url)
+            .replace("{dir}", subs["dir"])
+            .replace("{name}", subs["name"])
+            .replace("{out}", subs["out"])
+        )
+    argv.append(url)
     return argv
 
 
-def send_to_downloader(launcher, download_url, dry_run=False):
+def send_to_downloader(launcher, download_url, filename=None, dest_dir=None, dry_run=False):
     """Hand a resolved URL to the chosen download manager.
 
     Returns True on success, False on failure. Detached launches are
     optimistic (the manager owns the download from here).
     """
+    label = f" ({filename})" if filename else ""
     if dry_run:
         print(f"  🔗  {download_url}")
+        if filename:
+            print(paint_info(f"  📄  File: {filename}"))
+        if dest_dir:
+            print(paint_info(f"  📁  Dest: {dest_dir}"))
         print(paint_info("  ↑  Resolved link (dry-run: nothing was launched)"))
         return True
 
-    argv = launcher_argv(launcher, download_url)
+    argv = build_launcher_argv(launcher, download_url, dest_dir=dest_dir, filename=filename)
     if launcher["attached"]:
-        print(f"  ⬇️   Downloading with {launcher['display']} ...")
+        print(f"  ⬇️   Downloading with {launcher['display']}{label} ...")
         try:
             result = subprocess.run(argv)
         except (OSError, KeyboardInterrupt):
@@ -497,7 +649,7 @@ def send_to_downloader(launcher, download_url, dry_run=False):
     except OSError as exc:
         print(paint_fail(f"  ❌  Could not launch {launcher['display']}: {exc}"))
         return False
-    print(f"  🚀  Sent to {launcher['display']}")
+    print(f"  🚀  Sent to {launcher['display']}{label}")
     return True
 
 
@@ -537,7 +689,7 @@ def choose_paste_file():
     return files[index]
 
 
-def process_urls(urls, launcher, args, dry_run=False, resume=False):
+def process_urls(entries, launcher, args, dry_run=False, resume=False, dest_dir=None):
     """Shared download loop used by both CLI and interactive modes."""
     completed_urls = set()
     if resume:
@@ -545,13 +697,13 @@ def process_urls(urls, launcher, args, dry_run=False, resume=False):
         if completed_urls:
             print(f"📋 Resume mode: {len(completed_urls)} URLs already completed")
 
-    urls_to_process = [url for url in urls if url not in completed_urls]
-    skipped_count = len(urls) - len(urls_to_process)
+    entries_to_process = [e for e in entries if e[0] not in completed_urls]
+    skipped_count = len(entries) - len(entries_to_process)
 
     if skipped_count > 0:
         print(f"⏭️ Skipping {skipped_count} already completed URLs")
 
-    if not urls_to_process:
+    if not entries_to_process:
         print(paint_ok("✅ All URLs already completed!"))
         return
 
@@ -560,7 +712,7 @@ def process_urls(urls, launcher, args, dry_run=False, resume=False):
         sys.exit(1)
 
     mode = paint_info("dry-run (links only)") if dry_run else launcher["display"]
-    print(f"\n📥 Starting ({mode}) for {len(urls_to_process)} files...\n")
+    print(f"\n📥 Starting ({mode}) for {len(entries_to_process)} files...\n")
 
     start_time = time.time()
     success = 0
@@ -569,15 +721,19 @@ def process_urls(urls, launcher, args, dry_run=False, resume=False):
     consecutive_failures = 0
     last_was_attached = False
 
-    for index, base_url in enumerate(urls_to_process, 1):
-        print(f"\n[{index}/{len(urls_to_process)}]")
+    for index, (base_url, fragment_name) in enumerate(entries_to_process, 1):
+        print(f"\n[{index}/{len(entries_to_process)}]")
 
         try:
             real_url = extract_real_download_url(base_url)
 
             if real_url:
+                filename = resolve_filename(real_url, fragment_name)
                 try:
-                    ok = send_to_downloader(launcher, real_url, dry_run=dry_run)
+                    ok = send_to_downloader(
+                        launcher, real_url, filename=filename,
+                        dest_dir=dest_dir, dry_run=dry_run,
+                    )
                     if ok:
                         if not dry_run:
                             save_completed_url(base_url)
@@ -593,7 +749,8 @@ def process_urls(urls, launcher, args, dry_run=False, resume=False):
                     break
                 except Exception as exc:
                     print(f"  ❌ Send failed after retries: {exc}")
-                    save_failed_url(base_url, f"Send error: {exc}")
+                    if not dry_run:
+                        save_failed_url(base_url, f"Send error: {exc}")
                     send_failures += 1
                     consecutive_failures += 1
             else:
@@ -619,7 +776,7 @@ def process_urls(urls, launcher, args, dry_run=False, resume=False):
                     break
             consecutive_failures = 0
 
-        if index < len(urls_to_process) and not last_was_attached and not dry_run:
+        if index < len(entries_to_process) and not last_was_attached and not dry_run:
             if launcher and not launcher["attached"]:
                 print(f"⏳ Waiting {WAIT_BETWEEN} sec...")
                 time.sleep(WAIT_BETWEEN)
@@ -632,7 +789,7 @@ def process_urls(urls, launcher, args, dry_run=False, resume=False):
     print(paint_head("📊  DOWNLOAD SUMMARY"))
     print(f"{'=' * 50}")
     status = "🔗 Links resolved" if dry_run else "🚀 Sent to downloader"
-    print(f"{status}: {success}/{len(urls_to_process)}")
+    print(f"{status}: {success}/{len(entries_to_process)}")
     if skipped_count > 0:
         print(f"⏭️ Skipped (already completed): {skipped_count}")
     if extraction_failures > 0:
@@ -646,13 +803,15 @@ def process_urls(urls, launcher, args, dry_run=False, resume=False):
     print(f"{'=' * 50}")
 
 
-def print_banner(launcher):
+def print_banner(launcher, dest_dir=None):
     print(paint_head("\n🎮  FitGirl Downloader"))
     if launcher:
         status = "in-terminal" if launcher["attached"] else "launched (GUI)"
         print(paint_ok(f"✅ Downloader: {launcher['display']} — {launcher['path']} ({status})"))
     else:
         print(paint_warn("⚠️  Downloader: none — resolves links only (dry-run mode)."))
+    if dest_dir:
+        print(paint_ok(f"📁 Download dir: {dest_dir}"))
     print()
 
 
@@ -676,6 +835,11 @@ def main():
     parser.add_argument(
         "--set-downloader", dest="set_downloader", metavar="PATH",
         help="Persist the downloader path and run",
+    )
+    parser.add_argument(
+        "--download-dir", metavar="DIR",
+        help="Destination directory for downloads (created if missing; saved for next runs). "
+             "Applies to in-terminal download managers; GUI managers keep their own settings.",
     )
     parser.add_argument("--dry-run", action="store_true",
                         help="Resolve and print direct links without launching anything")
@@ -707,6 +871,21 @@ def main():
             print(f"  - {handle}")
         return
 
+    # Destination directory: validated, created, and remembered when passed
+    dest_dir = None
+    if args.download_dir:
+        dest_dir = os.path.abspath(os.path.expanduser(args.download_dir))
+        try:
+            os.makedirs(dest_dir, exist_ok=True)
+        except OSError as exc:
+            print(paint_fail(f"❌ Cannot create download dir {dest_dir}: {exc}"))
+            sys.exit(1)
+        save_config(download_dir=dest_dir)
+    else:
+        stored_dir = load_config().get("download_dir")
+        if stored_dir and os.path.isdir(stored_dir):
+            dest_dir = stored_dir
+
     # Resolve the launch command for the download manager before anything else
     wanted_path = args.set_downloader or args.downloader_path
     launcher = None
@@ -717,7 +896,7 @@ def main():
     elif not args.dry_run:
         launcher = resolve_launcher()
         if launcher:
-            print_banner(launcher)
+            print_banner(launcher, dest_dir=dest_dir)
 
     # Internet gate
     print("🔌 Checking internet connection...")
@@ -744,7 +923,7 @@ def main():
         if launcher is None and not args.dry_run:
             launcher = resolve_launcher()
             if launcher:
-                print_banner(launcher)
+                print_banner(launcher, dest_dir=dest_dir)
             else:
                 print(paint_warn("⚠️  Running in dry-run-only mode until a downloader is set (--downloader-path)."))
 
@@ -769,14 +948,17 @@ def main():
                 paste_path = choose_paste_file()
                 if not paste_path:
                     continue
-                process_urls(parse_paste_file(paste_path), launcher, args, dry_run=args.dry_run, resume=args.resume)
+                process_urls(
+                    parse_paste_file(paste_path), launcher, args,
+                    dry_run=args.dry_run, resume=args.resume, dest_dir=dest_dir,
+                )
                 paste_path = None
             elif choice == "2":
                 old_path = launcher["path"] if launcher else None
                 new_path = prompt_for_launcher()
                 if new_path:
                     launcher = new_path
-                    save_config({"path": launcher["path"], "key": launcher["key"]})
+                    save_config(launcher={"path": launcher["path"], "key": launcher["key"]})
                     if old_path:
                         print(paint_ok("✅ Downloader updated and saved."))
                     else:
@@ -785,7 +967,10 @@ def main():
                 paste_path = choose_paste_file()
                 if not paste_path:
                     continue
-                process_urls(parse_paste_file(paste_path), launcher, args, dry_run=True, resume=args.resume)
+                process_urls(
+                    parse_paste_file(paste_path), launcher, args,
+                    dry_run=True, resume=args.resume, dest_dir=dest_dir,
+                )
                 paste_path = None
             elif choice == "4":
                 return
@@ -796,16 +981,16 @@ def main():
         print(paint_fail(f"❌ File not found: {paste_path}"))
         sys.exit(1)
 
-    urls = parse_paste_file(paste_path)
-    if not urls:
+    entries = parse_paste_file(paste_path)
+    if not entries:
         print(paint_warn("⚠️ No URLs found!"))
         return
 
     if args.dry_run or launcher is None:
-        process_urls(urls, launcher, args, dry_run=True, resume=args.resume)
+        process_urls(entries, launcher, args, dry_run=True, resume=args.resume, dest_dir=dest_dir)
         return
 
-    process_urls(urls, launcher, args, dry_run=False, resume=args.resume)
+    process_urls(entries, launcher, args, dry_run=False, resume=args.resume, dest_dir=dest_dir)
 
 
 if __name__ == "__main__":
