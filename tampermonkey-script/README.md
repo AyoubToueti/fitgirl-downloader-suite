@@ -69,6 +69,29 @@ Requires [Tampermonkey](https://www.tampermonkey.net/) (or another userscript
 manager that supports `GM_xmlhttpRequest`), and a browser that supports
 constructable stylesheets — Chrome 73+, Edge 79+, Firefox 101+, Safari 16.4+.
 
+### From a URL (recommended — auto-updates)
+
+Installing from a URL records the source, which is what lets Tampermonkey check
+for new versions. This is the only path that updates itself.
+
+1. Open this URL in a browser that has Tampermonkey installed:
+
+    https://raw.githubusercontent.com/AyoubToueti/fitgirl-downloader-suite/userscript-latest/tampermonkey-script/fitgirl_Tampermonkey_downloader.js
+
+2. Tampermonkey shows its install page. Click **Install**.
+
+3. Visit a FitGirl Repacks page or a paste page that lists fuckingfast.co links.
+
+Verify it worked: open the Tampermonkey dashboard, click the script, and check
+that the **Settings** tab shows an update URL. `GM_info.scriptWillUpdate` is
+`true` for scripts installed this way.
+
+### Paste (never auto-updates)
+
+Use this only if you cannot install from a URL. **A pasted script never checks
+for updates** — Tampermonkey records no source URL, so it reports
+`scriptWillUpdate: false` and you must repeat this by hand for every release.
+
 1. Open the Tampermonkey dashboard.
 
 2. Choose **Create a new script**.
@@ -80,6 +103,19 @@ constructable stylesheets — Chrome 73+, Edge 79+, Firefox 101+, Safari 16.4+.
 5. Save with Ctrl+S.
 
 6. Visit a FitGirl Repacks page or a paste page that lists fuckingfast.co links.
+
+### Switching from paste to URL
+
+If you installed by pasting before version 2.0.0, install once from the URL
+above and delete the pasted copy. From then on updates are automatic.
+
+### How updates work
+
+`@updateURL` and `@downloadURL` both point at the floating `userscript-latest`
+tag. Every `userscript-v*` release force-moves that tag, so the URL always
+serves the newest released build. Tampermonkey compares `@version` against its
+stored copy and offers the update; it never sees work-in-progress commits on
+`main`.
 
 ## Usage
 

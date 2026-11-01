@@ -19,6 +19,8 @@
 // @grant        GM_log
 // @connect      fuckingfast.co
 // @connect      fitgirl-repacks.site
+// @updateURL    https://raw.githubusercontent.com/AyoubToueti/fitgirl-downloader-suite/userscript-latest/tampermonkey-script/fitgirl_Tampermonkey_downloader.js
+// @downloadURL  https://raw.githubusercontent.com/AyoubToueti/fitgirl-downloader-suite/userscript-latest/tampermonkey-script/fitgirl_Tampermonkey_downloader.js
 // @run-at       document-idle
 // @noframes
 // ==/UserScript==

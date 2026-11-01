@@ -1,0 +1,108 @@
+# Publishes the Tampermonkey userscript whenever a tag matching userscript-v*
+# is pushed, and force-moves the floating userscript-latest tag so the
+# @updateURL in the script keeps resolving to the newest released build.
+#
+# IMPORTANT: this file must exist on the default branch BEFORE the tag is
+# created, exactly like release-extension.yml.
+#
+# Tag format:  userscript-v<@version>   e.g. userscript-v2.0.1
+# The job fails if the tag suffix and the script's @version disagree.
+
+name: Release userscript
+
+on:
+  push:
+    tags:
+      - 'userscript-v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read userscript version
+        id: version
+        run: |
+          script="tampermonkey-script/fitgirl_Tampermonkey_downloader.js"
+          version=$(grep -m1 '^// @version' "$script" | awk '{print $3}')
+          if [ -z "$version" ]; then
+            echo "::error::Could not read @version from $script"
+            exit 1
+          fi
+          echo "value=$version" >> "$GITHUB_OUTPUT"
+          echo "Userscript version: $version"
+
+      - name: Verify tag matches @version
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          expected="userscript-v${{ steps.version.outputs.value }}"
+          if [ "$tag" != "$expected" ]; then
+            echo "::error::Tag '$tag' does not match @version '${{ steps.version.outputs.value }}' (expected '$expected')"
+            exit 1
+          fi
+          echo "Tag '$tag' matches the script version."
+
+      - name: Syntax check
+        run: node --check tampermonkey-script/fitgirl_Tampermonkey_downloader.js
+
+      - name: Extract changelog section
+        run: |
+          version="${{ steps.version.outputs.value }}"
+          out="$RUNNER_TEMP/release-notes.md"
+
+          awk -v heading="## [$version]" '
+            index($0, heading) == 1 { found = 1; next }
+            found && /^## \[/ { exit }
+            found { print }
+          ' tampermonkey-script/CHANGELOG.md > "$out" 2>/dev/null || true
+
+          if [ ! -s "$out" ]; then
+            {
+              echo "Tampermonkey userscript ${version}."
+              echo
+              echo "Install once from the @downloadURL recorded in the script header."
+              echo "After that, Tampermonkey picks up new versions automatically."
+            } > "$out"
+          fi
+
+          echo "--- release notes ---"
+          cat "$out"
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version="${{ steps.version.outputs.value }}"
+          asset="fitgirl_Tampermonkey_downloader-${version}.user.js"
+          cp tampermonkey-script/fitgirl_Tampermonkey_downloader.js "$asset"
+
+          gh release create "${GITHUB_REF_NAME}" \
+            "$asset" \
+            --title "Tampermonkey userscript ${version}" \
+            --notes-file "$RUNNER_TEMP/release-notes.md"
+
+      - name: Move userscript-latest tag
+        run: |
+          # The @updateURL in the script points at this tag, so it must always
+          # resolve to the newest released build. Force-moving is intentional:
+          # the tag is a pointer, not history.
+          git tag -f userscript-latest "${GITHUB_SHA}"
+          git push --force origin userscript-latest
+
+      - name: Release summary
+        run: |
+          {
+            echo "## Released userscript-v${{ steps.version.outputs.value }}"
+            echo
+            echo "Asset: \`fitgirl_Tampermonkey_downloader-${{ steps.version.outputs.value }}.user.js\`"
+            echo
+            echo "The \`userscript-latest\` tag now points at this commit, so"
+            echo "\`@updateURL\` serves this version to installed copies."
+          } >> "$GITHUB_STEP_SUMMARY"
