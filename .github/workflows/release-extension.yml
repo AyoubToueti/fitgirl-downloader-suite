@@ -1,0 +1,120 @@
+# Builds and publishes the browser-extension zip whenever a tag matching
+# extension-v* is pushed.
+#
+# IMPORTANT: a `push: tags:` workflow only runs if this file already exists in
+# the commit the tag points at. Land this workflow on the default branch BEFORE
+# creating the tag, or the tag push triggers nothing.
+#
+# Tag format:  extension-v<manifest version>   e.g. extension-v0.3.0
+# The job fails if the tag suffix and browser-extension/manifest.json disagree,
+# which catches tagging the wrong commit.
+
+name: Release browser extension
+
+on:
+  push:
+    tags:
+      - 'extension-v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read manifest version
+        id: version
+        run: |
+          version=$(node -p "require('./browser-extension/manifest.json').version")
+          if [ -z "$version" ]; then
+            echo "::error::Could not read version from browser-extension/manifest.json"
+            exit 1
+          fi
+          echo "value=$version" >> "$GITHUB_OUTPUT"
+          echo "Manifest version: $version"
+
+      - name: Verify tag matches manifest
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          expected="extension-v${{ steps.version.outputs.value }}"
+          if [ "$tag" != "$expected" ]; then
+            echo "::error::Tag '$tag' does not match manifest version '${{ steps.version.outputs.value }}' (expected '$expected')"
+            exit 1
+          fi
+          echo "Tag '$tag' matches the manifest."
+
+      - name: Extract changelog section
+        run: |
+          version="${{ steps.version.outputs.value }}"
+          out="$RUNNER_TEMP/release-notes.md"
+
+          awk -v heading="## [$version]" '
+            index($0, heading) == 1 { found = 1; next }
+            found && /^## \[/ { exit }
+            found { print }
+          ' browser-extension/CHANGELOG.md > "$out"
+
+          if [ ! -s "$out" ]; then
+            echo "No CHANGELOG section for $version; using fallback notes."
+            {
+              echo "Browser extension ${version}."
+              echo
+              echo "See browser-extension/CHANGELOG.md for details."
+            } > "$out"
+          fi
+
+          echo "--- release notes ---"
+          cat "$out"
+
+      - name: Build zip
+        run: |
+          version="${{ steps.version.outputs.value }}"
+          zip_name="browser-extension-${version}.zip"
+
+          # Zip from inside the folder so manifest.json sits at the archive root.
+          ( cd browser-extension && zip -qr "../${zip_name}" . )
+
+          ls -lh "$zip_name"
+          echo "--- archive contents (first 20) ---"
+          unzip -l "$zip_name" | head -20
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version="${{ steps.version.outputs.value }}"
+          zip_name="browser-extension-${version}.zip"
+          major="${version%%.*}"
+
+          # A 0.x version is pre-1.0 and, by semver convention, unstable, so it
+          # is published as a pre-release. A version carrying a suffix such as
+          # 1.0.0-rc.1 is also a pre-release. Anything else is a normal release.
+          prerelease_flag=""
+          if printf '%s' "$version" | grep -q '-'; then
+            prerelease_flag="--prerelease"
+            echo "Version $version is pre-1.0 or carries a suffix; publishing as pre-release."
+          fi
+
+          gh release create "${GITHUB_REF_NAME}" \
+            "$zip_name" \
+            --title "Browser extension ${version}" \
+            --notes-file "$RUNNER_TEMP/release-notes.md" \
+            $prerelease_flag
+
+      - name: Release summary
+        run: |
+          {
+            echo "## Released extension-v${{ steps.version.outputs.value }}"
+            echo
+            echo "Asset: \`browser-extension-${{ steps.version.outputs.value }}.zip\`"
+            echo
+            echo "Unsigned build. Load it by unpacking: Chrome/Edge **Load unpacked**"
+            echo "on the unzipped folder, Firefox **Load Temporary Add-on** on its"
+            echo "\`manifest.json\`. Signing is required only for store distribution."
+          } >> "$GITHUB_STEP_SUMMARY"
