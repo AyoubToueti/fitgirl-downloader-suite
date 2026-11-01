@@ -12,6 +12,14 @@ function popupIcon(name, sizeClass) {
   return '';
 }
 
+// Extension-styled confirmation, replacing the browser's built-in dialog.
+async function confirmDialog(options) {
+  if (typeof FitGirlDialog !== 'undefined' && typeof FitGirlDialog.confirm === 'function') {
+    return FitGirlDialog.confirm(options);
+  }
+  return window.confirm(options.message || 'Are you sure?');
+}
+
 // Performance utilities
 const perfUtils = {
   // Debounce function to limit rapid calls
@@ -151,20 +159,19 @@ async function loadStats() {
       STORAGE_KEYS.DOWNLOAD_STATS
     ];
     
-    browserAPI.storage.local.get(keys, (result) => {
-      const completedUrls = result[STORAGE_KEYS.COMPLETED_URLS] || [];
-      const failedUrls = result[STORAGE_KEYS.FAILED_URLS] || [];
-      const stats = result[STORAGE_KEYS.DOWNLOAD_STATS] || {
-        totalDownloads: 0,
-        successfulDownloads: 0,
-        failedDownloads: 0,
-        lastUpdated: null
-      };
-      
-      // Update UI
-      updateStatsUI(stats, completedUrls.length, failedUrls.length);
-      updateFailedList(failedUrls);
-    });
+    const result = await browserAPI.storage.local.get(keys);
+    const completedUrls = result[STORAGE_KEYS.COMPLETED_URLS] || [];
+    const failedUrls = result[STORAGE_KEYS.FAILED_URLS] || [];
+    const stats = result[STORAGE_KEYS.DOWNLOAD_STATS] || {
+      totalDownloads: 0,
+      successfulDownloads: 0,
+      failedDownloads: 0,
+      lastUpdated: null
+    };
+
+    // Update UI
+    updateStatsUI(stats, completedUrls.length, failedUrls.length);
+    updateFailedList(failedUrls);
   } catch (error) {
     console.error('Error loading stats:', error);
     showStatus('Error loading statistics', 'error');
@@ -196,25 +203,24 @@ function updateStatsUI(stats, completedCount, failedCount) {
 // Check pause state
 async function checkPauseState() {
   try {
-    browserAPI.storage.local.get([STORAGE_KEYS.PAUSE_STATE], (result) => {
-      const pauseState = result[STORAGE_KEYS.PAUSE_STATE];
-      
-      if (pauseState?.isPaused) {
-        // Check if expired
-        const isExpired = isPauseExpired(pauseState.pausedAt);
-        
-        if (isExpired) {
-          // Clear expired pause state
-          browserAPI.storage.local.set({ [STORAGE_KEYS.PAUSE_STATE]: null });
-          elements.pauseState.style.display = 'none';
-        } else {
-          // Show pause state
-          showPauseState(pauseState);
-        }
-      } else {
+    const result = await browserAPI.storage.local.get([STORAGE_KEYS.PAUSE_STATE]);
+    const pauseState = result[STORAGE_KEYS.PAUSE_STATE];
+
+    if (pauseState?.isPaused) {
+      // Check if expired
+      const isExpired = isPauseExpired(pauseState.pausedAt);
+
+      if (isExpired) {
+        // Clear expired pause state
+        await browserAPI.storage.local.set({ [STORAGE_KEYS.PAUSE_STATE]: null });
         elements.pauseState.style.display = 'none';
+      } else {
+        // Show pause state
+        showPauseState(pauseState);
       }
-    });
+    } else {
+      elements.pauseState.style.display = 'none';
+    }
   } catch (error) {
     console.error('Error checking pause state:', error);
   }
@@ -230,11 +236,14 @@ function showPauseState(pauseState) {
   
   elements.pauseDetails.textContent = `Paused ${timeAgo} on ${pageName}`;
   
-  elements.resumeBtn.onclick = () => {
-    // Navigate to the paused page
-    browserAPI.tabs.create({ url: pauseState.pageUrl }, () => {
-      window.close();
-    });
+  elements.resumeBtn.onclick = async () => {
+    // Navigate to the paused page, then close the popup.
+    try {
+      await browserAPI.tabs.create({ url: pauseState.pageUrl });
+    } catch (error) {
+      console.error('Error opening paused page:', error);
+    }
+    window.close();
   };
 }
 
@@ -442,36 +451,25 @@ async function saveDownloadMethodPreference(method) {
 }
 
 async function reloadActiveTabAfterModeSwitch() {
-  return new Promise((resolve) => {
-    if (!browserAPI.tabs?.query || !browserAPI.tabs.reload) {
-      resolve(false);
-      return;
+  if (!browserAPI.tabs?.query || !browserAPI.tabs.reload) {
+    return false;
+  }
+
+  try {
+    // Promise-based on both engines. Callback style would never settle in
+    // Firefox, hanging the saveUIModePreference() await below.
+    const tabs = await browserAPI.tabs.query({ active: true, currentWindow: true });
+    const activeTab = tabs?.[0];
+    if (activeTab?.id === undefined) {
+      return false;
     }
 
-    browserAPI.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (browserAPI.runtime?.lastError) {
-        console.error('Error querying active tab:', browserAPI.runtime.lastError);
-        resolve(false);
-        return;
-      }
-
-      const activeTab = tabs?.[0];
-      if (activeTab?.id === undefined) {
-        resolve(false);
-        return;
-      }
-
-      browserAPI.tabs.reload(activeTab.id, {}, () => {
-        if (browserAPI.runtime?.lastError) {
-          console.error('Error reloading active tab:', browserAPI.runtime.lastError);
-          resolve(false);
-          return;
-        }
-
-        resolve(true);
-      });
-    });
-  });
+    await browserAPI.tabs.reload(activeTab.id, {});
+    return true;
+  } catch (error) {
+    console.error('Error reloading active tab:', error);
+    return false;
+  }
 }
 
 async function saveUIModePreference(mode) {
@@ -513,31 +511,30 @@ async function retryAllFailed() {
   try {
     showStatus('Retrying all failed downloads...', 'info');
     
-    browserAPI.storage.local.get([STORAGE_KEYS.FAILED_URLS], async (result) => {
-      const failedUrls = result[STORAGE_KEYS.FAILED_URLS] || [];
-      
-      if (failedUrls.length === 0) {
-        showStatus('No failed downloads to retry', 'info');
-        return;
-      }
-      
-      // This would require the content script to handle retry
-      // For now, just notify the user
-      showStatus(`${failedUrls.length} failed downloads found. Please visit the download page to retry.`, 'info');
-      
-      // Optional: Open the first failed URL's page
-      if (failedUrls.length > 0) {
-        const firstFailed = typeof failedUrls[0] === 'string' ? failedUrls[0] : failedUrls[0].url;
-        
-        const shouldOpen = confirm(`Open the download page to retry failed downloads?`);
-        if (shouldOpen) {
-          // Try to extract the page URL from the download URL
-          const pageUrl = extractPageUrl(firstFailed);
-          browserAPI.tabs.create({ url: pageUrl });
-          window.close();
-        }
-      }
+    const result = await browserAPI.storage.local.get([STORAGE_KEYS.FAILED_URLS]);
+    const failedUrls = result[STORAGE_KEYS.FAILED_URLS] || [];
+
+    if (failedUrls.length === 0) {
+      showStatus('No failed downloads to retry', 'info');
+      return;
+    }
+
+    // Retry happens on the download page, where the content script can act.
+    showStatus(`${failedUrls.length} failed downloads found. Please visit the download page to retry.`, 'info');
+
+    const firstFailed = typeof failedUrls[0] === 'string' ? failedUrls[0] : failedUrls[0].url;
+    const shouldOpen = await confirmDialog({
+      title: 'Retry failed downloads',
+      message: 'Open the download page to retry the failed downloads?',
+      confirmLabel: 'Open page',
+      cancelLabel: 'Cancel'
     });
+    if (shouldOpen) {
+      // Try to extract the page URL from the download URL
+      const pageUrl = extractPageUrl(firstFailed);
+      await browserAPI.tabs.create({ url: pageUrl });
+      window.close();
+    }
   } catch (error) {
     console.error('Error retrying failed downloads:', error);
     showStatus('Error retrying downloads', 'error');
@@ -561,8 +558,14 @@ async function retryFailedUrl(url) {
 
 // Clear all logs
 async function clearLogs() {
-  const confirmed = confirm('Are you sure you want to clear all download logs? This cannot be undone.');
-  
+  const confirmed = await confirmDialog({
+    title: 'Clear download logs',
+    message: 'This removes the completed history, the failed list and the counters. This cannot be undone.',
+    confirmLabel: 'Clear logs',
+    cancelLabel: 'Cancel',
+    danger: true
+  });
+
   if (!confirmed) return;
   
   try {
@@ -577,13 +580,12 @@ async function clearLogs() {
       }
     };
     
-    browserAPI.storage.local.set(clearData, () => {
-      showStatus('Logs cleared successfully', 'success');
-      loadStats();
-      
-      // Clear badge
-      browserAPI.action.setBadgeText({ text: '' });
-    });
+    await browserAPI.storage.local.set(clearData);
+    showStatus('Logs cleared successfully', 'success');
+    await loadStats();
+
+    // Clear badge
+    await browserAPI.action.setBadgeText({ text: '' });
   } catch (error) {
     console.error('Error clearing logs:', error);
     showStatus('Error clearing logs', 'error');

@@ -1,16 +1,6 @@
 // shared/utils.js
 // Utility functions for FitGirl Downloader Extension
 
-// Cross-browser compatibility wrapper
-const browserAPI = (() => {
-  if (typeof browser !== 'undefined') {
-    return browser; // Firefox
-  } else if (typeof chrome !== 'undefined') {
-    return chrome; // Chrome/Edge
-  }
-  throw new Error('Browser API not available');
-})();
-
 /**
  * Hash a string using simple hash function (for URL keys)
  * @param {string} str - String to hash
@@ -124,83 +114,6 @@ function makeCancellable(promise) {
     promise: wrappedPromise,
     cancel: () => { cancelled = true; }
   };
-}
-
-/**
- * Get storage data with Promise wrapper
- * @param {string|string[]|object} keys - Storage keys to retrieve
- * @returns {Promise<object>} Storage data
- */
-async function getStorage(keys) {
-  return new Promise((resolve, reject) => {
-    browserAPI.storage.local.get(keys, (result) => {
-      if (browserAPI.runtime.lastError) {
-        reject(browserAPI.runtime.lastError);
-      } else {
-        resolve(result);
-      }
-    });
-  });
-}
-
-/**
- * Set storage data with Promise wrapper
- * @param {object} data - Data to store
- * @returns {Promise<void>}
- */
-async function setStorage(data) {
-  return new Promise((resolve, reject) => {
-    browserAPI.storage.local.set(data, () => {
-      if (browserAPI.runtime.lastError) {
-        reject(browserAPI.runtime.lastError);
-      } else {
-        resolve();
-      }
-    });
-  });
-}
-
-/**
- * Send message to background script
- * @param {object} message - Message object
- * @returns {Promise<any>} Response from background
- */
-async function sendMessage(message) {
-  return new Promise((resolve, reject) => {
-    browserAPI.runtime.sendMessage(message, (response) => {
-      if (browserAPI.runtime.lastError) {
-        reject(browserAPI.runtime.lastError);
-      } else {
-        resolve(response);
-      }
-    });
-  });
-}
-
-/**
- * Show browser notification
- * @param {string} title - Notification title
- * @param {string} message - Notification message
- * @param {string} type - Notification type (basic, image, list, progress)
- */
-async function showNotification(title, message, type = 'basic') {
-  const notificationOptions = {
-    type: type,
-    iconUrl: browserAPI.runtime.getURL('icons/icon48.png'),
-    title: title,
-    message: message
-  };
-  
-  return new Promise((resolve) => {
-    browserAPI.notifications.create('', notificationOptions, (notificationId) => {
-      resolve(notificationId);
-      
-      // Auto-clear after timeout
-      setTimeout(() => {
-        browserAPI.notifications.clear(notificationId);
-      }, CONFIG.NOTIFICATION_TIMEOUT);
-    });
-  });
 }
 
 /**
@@ -327,10 +240,24 @@ function sanitizeFilename(filename) {
     .substring(0, 255);
 }
 
+/**
+ * True when a runtime message failed because the extension was reloaded,
+ * updated or disabled while this page kept the previous content script alive.
+ * Every sendMessage from that page rejects from then on, and the only fix is
+ * reloading the page, so callers should say that instead of surfacing the raw
+ * error. Also covers the service worker being unreachable.
+ * @param {Error|string} error
+ * @returns {boolean}
+ */
+function isExtensionContextError(error) {
+  if (!error) return false;
+  const message = String(error.message || error);
+  return /Extension context invalidated|message port closed|receiving end does not exist|Could not establish connection/i.test(message);
+}
+
 // Export functions
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
-    browserAPI,
     hashString,
     debounce,
     throttle,
@@ -338,13 +265,8 @@ if (typeof module !== 'undefined' && module.exports) {
     batchUpdate,
     escapeHtml,
     makeCancellable,
-    getStorage,
-    setStorage,
-    sendMessage,
-    showNotification,
     delay,
     getFilenameFromUrl,
-    generateFilename,
     formatTimestamp,
     retryWithBackoff,
     log,

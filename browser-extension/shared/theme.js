@@ -48,16 +48,21 @@
   } catch (e) {}
 
   function readPreference() {
-    return new Promise(function (resolve) {
-      try {
-        browserAPI.storage.local.get([KEY], function (result) {
+    // Promise-based: Firefox's browser.* ignores a trailing callback, which
+    // left the saved preference unread and reset the toggle on every load.
+    try {
+      var request = browserAPI.storage.local.get([KEY]);
+      return Promise.resolve(request)
+        .then(function (result) {
           var v = result && result[KEY];
-          resolve(v === 'light' || v === 'dark' ? v : 'auto');
+          return v === 'light' || v === 'dark' ? v : 'auto';
+        })
+        .catch(function () {
+          return 'auto';
         });
-      } catch (e) {
-        resolve('auto');
-      }
-    });
+    } catch (e) {
+      return Promise.resolve('auto');
+    }
   }
 
   function writePreference(mode) {

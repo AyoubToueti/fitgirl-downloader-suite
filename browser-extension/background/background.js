@@ -1,23 +1,15 @@
-// Optimized background service worker
+// Optimized background service worker (Chrome) / event page (Firefox)
 
-// Import config - wrapped in try-catch for error handling
-try {
+// Chrome loads this script as a service worker, where importScripts exists.
+// Firefox loads the background as an event page driven by the manifest's
+// `background.scripts` array, which already lists shared/config.js first.
+// Guarding on typeof keeps a trimmed fallback from clobbering the real CONFIG.
+if (typeof importScripts === 'function') {
   importScripts('../shared/config.js');
-} catch (error) {
-  console.error('Failed to load config.js:', error);
-  // Define minimal CONFIG fallback
-  self.CONFIG = {
-    STORAGE_KEYS: {
-      COMPLETED_URLS: 'completed_urls',
-      FAILED_URLS: 'failed_urls',
-      PAUSE_STATE: 'pause_state',
-      DOWNLOAD_STATS: 'download_stats'
-    },
-    PATTERNS: {
-          WINDOW_OPEN_REGEX: /window\.open\(["']([^"']+\/dl\/[^"']+)["']/,
-          FUCKINGFAST_FILE_REGEX: /fuckingfast\.co\/(?:f\/)?([a-zA-Z0-9_-]+)/
-        }
-  };
+}
+
+if (typeof CONFIG === 'undefined' || !CONFIG) {
+  throw new Error('FitGirl Downloader: shared/config.js was not loaded before the background script');
 }
 
 const browserAPI = typeof browser !== 'undefined' ? browser : chrome;
@@ -784,7 +776,20 @@ async function handleDownload(request, sendResponse) {
       conflictAction: 'uniquify'
     });
 
-    monitorDownload(downloadId);
+    // Subscribe BEFORE reading state, then reconcile with a snapshot. Firefox
+    // resolves downloads.download() only once the download is in progress, so
+    // a fast file could reach 'complete' before a listener attached afterwards
+    // would ever see the delta. Attaching first plus the snapshot closes both
+    // orders: anything that already happened shows up in the snapshot, anything
+    // later arrives as an event.
+    const watcher = monitorDownload(downloadId);
+
+    try {
+      const [item] = await browserAPI.downloads.search({ id: downloadId });
+      watcher.settleFromSnapshot(item);
+    } catch (snapshotError) {
+      console.warn('Download state snapshot unavailable:', snapshotError.message);
+    }
 
     sendResponse({ success: true, downloadId: downloadId });
   } catch (error) {
@@ -794,22 +799,72 @@ async function handleDownload(request, sendResponse) {
 }
 
 /**
- * Monitor download progress and update badge
+ * Watch a download until it settles.
+ *
+ * Returns { settleFromSnapshot } so the caller can reconcile the state that
+ * existed before/around the subscription. Detaches exactly once, from every
+ * path, and re-arms an idle timer on each delta so a suspended MV3 event page
+ * cannot keep the listener registered forever.
  */
 function monitorDownload(downloadId) {
-  const listener = (delta) => {
-    if (delta.id !== downloadId) return;
+  let settled = false;
+  let idleTimer = null;
 
-    if (delta.state && delta.state.current === 'complete') {
-      console.log(`Download ${downloadId} completed`);
+  const DETACH_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+
+  const detach = () => {
+    if (settled) return;
+    settled = true;
+    if (idleTimer) {
+      clearTimeout(idleTimer);
+      idleTimer = null;
+    }
+    try {
       browserAPI.downloads.onChanged.removeListener(listener);
-    } else if (delta.error) {
-      console.error(`Download ${downloadId} failed:`, delta.error.current);
-      browserAPI.downloads.onChanged.removeListener(listener);
+    } catch (error) {
+      console.error('Failed to detach download listener:', error);
     }
   };
 
+  const rearmIdleTimer = () => {
+    if (settled) return;
+    if (idleTimer) clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => {
+      console.warn(`Download ${downloadId} produced no changes for 30 minutes, detaching watcher`);
+      detach();
+    }, DETACH_TIMEOUT_MS);
+  };
+
+  const settleFromState = (state, errorCode) => {
+    if (state === 'complete') {
+      console.log(`Download ${downloadId} completed`);
+      detach();
+      return true;
+    }
+    if (state === 'interrupted') {
+      console.error(`Download ${downloadId} interrupted:`, errorCode || 'unknown reason');
+      detach();
+      return true;
+    }
+    return false;
+  };
+
+  const listener = (delta) => {
+    if (delta.id !== downloadId || settled) return;
+
+    rearmIdleTimer();
+    settleFromState(delta.state?.current, delta.error?.current);
+  };
+
   browserAPI.downloads.onChanged.addListener(listener);
+  rearmIdleTimer();
+
+  return {
+    settleFromSnapshot(item) {
+      if (settled || !item) return;
+      settleFromState(item.state, item.error);
+    }
+  };
 }
 
 /**
@@ -819,13 +874,10 @@ async function handleGetStorage(request, sendResponse) {
   const { keys } = request;
 
   try {
-    browserAPI.storage.local.get(keys, (result) => {
-      if (browserAPI.runtime.lastError) {
-        sendResponse({ success: false, error: browserAPI.runtime.lastError.message });
-      } else {
-        sendResponse({ success: true, data: result });
-      }
-    });
+    // Promise-based so this works in Chrome and Firefox. A trailing callback
+    // is silently dropped by Firefox's browser.* namespace.
+    const result = await browserAPI.storage.local.get(keys);
+    sendResponse({ success: true, data: result || {} });
   } catch (error) {
     sendResponse({ success: false, error: error.message });
   }
@@ -838,13 +890,8 @@ async function handleSetStorage(request, sendResponse) {
   const { data } = request;
 
   try {
-    browserAPI.storage.local.set(data, () => {
-      if (browserAPI.runtime.lastError) {
-        sendResponse({ success: false, error: browserAPI.runtime.lastError.message });
-      } else {
-        sendResponse({ success: true });
-      }
-    });
+    await browserAPI.storage.local.set(data);
+    sendResponse({ success: true });
   } catch (error) {
     sendResponse({ success: false, error: error.message });
   }
@@ -911,61 +958,63 @@ async function handleUpdateStats(request, sendResponse) {
   const { type, url, error } = request;
 
   try {
-    browserAPI.storage.local.get([
+    // Promise-based: Firefox drops a trailing callback entirely, which used to
+    // leave this handler silent and the popup stats permanently at zero.
+    const result = await browserAPI.storage.local.get([
       CONFIG.STORAGE_KEYS.COMPLETED_URLS,
       CONFIG.STORAGE_KEYS.FAILED_URLS,
       CONFIG.STORAGE_KEYS.DOWNLOAD_STATS
-    ], (result) => {
-      const completedUrls = result[CONFIG.STORAGE_KEYS.COMPLETED_URLS] || [];
-      const failedUrls = result[CONFIG.STORAGE_KEYS.FAILED_URLS] || [];
-      const stats = result[CONFIG.STORAGE_KEYS.DOWNLOAD_STATS] || {
-        totalDownloads: 0,
-        successfulDownloads: 0,
-        failedDownloads: 0,
-        lastUpdated: null
-      };
+    ]) || {};
 
-      if (type === 'success') {
-        if (!completedUrls.includes(url)) {
-          completedUrls.push(url);
-        }
+    const completedUrls = result[CONFIG.STORAGE_KEYS.COMPLETED_URLS] || [];
+    const failedUrls = result[CONFIG.STORAGE_KEYS.FAILED_URLS] || [];
+    const stats = result[CONFIG.STORAGE_KEYS.DOWNLOAD_STATS] || {
+      totalDownloads: 0,
+      successfulDownloads: 0,
+      failedDownloads: 0,
+      lastUpdated: null
+    };
 
-        // Remove from failed if present
-        const failedIndex = failedUrls.findIndex(f => f.url === url);
-        if (failedIndex !== -1) {
-          failedUrls.splice(failedIndex, 1);
-          stats.failedDownloads = Math.max(0, stats.failedDownloads - 1);
-        }
-
-        stats.successfulDownloads++;
-        stats.totalDownloads++;
-      } else if (type === 'failure') {
-        const existingFailed = failedUrls.find(f => f.url === url);
-        if (existingFailed) {
-          existingFailed.error = error;
-          existingFailed.timestamp = Date.now();
-        } else {
-          failedUrls.push({
-            url: url,
-            error: error,
-            timestamp: Date.now()
-          });
-          stats.failedDownloads++;
-        }
-        stats.totalDownloads++;
+    if (type === 'success') {
+      if (!completedUrls.includes(url)) {
+        completedUrls.push(url);
       }
 
-      stats.lastUpdated = Date.now();
+      // Remove from failed if present
+      const failedIndex = failedUrls.findIndex(f => f.url === url);
+      if (failedIndex !== -1) {
+        failedUrls.splice(failedIndex, 1);
+        stats.failedDownloads = Math.max(0, stats.failedDownloads - 1);
+      }
 
-      browserAPI.storage.local.set({
-        [CONFIG.STORAGE_KEYS.COMPLETED_URLS]: completedUrls,
-        [CONFIG.STORAGE_KEYS.FAILED_URLS]: failedUrls,
-        [CONFIG.STORAGE_KEYS.DOWNLOAD_STATS]: stats
-      }, () => {
-        updateBadge(stats);
-        sendResponse({ success: true });
-      });
+      stats.successfulDownloads++;
+      stats.totalDownloads++;
+    } else if (type === 'failure') {
+      const existingFailed = failedUrls.find(f => f.url === url);
+      if (existingFailed) {
+        existingFailed.error = error;
+        existingFailed.timestamp = Date.now();
+      } else {
+        failedUrls.push({
+          url: url,
+          error: error,
+          timestamp: Date.now()
+        });
+        stats.failedDownloads++;
+      }
+      stats.totalDownloads++;
+    }
+
+    stats.lastUpdated = Date.now();
+
+    await browserAPI.storage.local.set({
+      [CONFIG.STORAGE_KEYS.COMPLETED_URLS]: completedUrls,
+      [CONFIG.STORAGE_KEYS.FAILED_URLS]: failedUrls,
+      [CONFIG.STORAGE_KEYS.DOWNLOAD_STATS]: stats
     });
+
+    updateBadge(stats);
+    sendResponse({ success: true });
   } catch (error) {
     console.error('Failed to update stats:', error);
     sendResponse({ success: false, error: error.message });
@@ -992,12 +1041,15 @@ function updateBadge(stats) {
 async function initialize() {
   console.log('Initializing FitGirl Downloader extension...');
 
-  browserAPI.storage.local.get([CONFIG.STORAGE_KEYS.DOWNLOAD_STATS], (result) => {
+  try {
+    const result = await browserAPI.storage.local.get([CONFIG.STORAGE_KEYS.DOWNLOAD_STATS]) || {};
     const stats = result[CONFIG.STORAGE_KEYS.DOWNLOAD_STATS];
     if (stats) {
       updateBadge(stats);
     }
-  });
+  } catch (error) {
+    console.error('Failed to restore badge state:', error);
+  }
 
   console.log('FitGirl Downloader extension initialized');
 }
