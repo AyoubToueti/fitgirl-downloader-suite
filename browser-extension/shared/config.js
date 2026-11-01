@@ -51,6 +51,7 @@ const CONFIG = {
   // Status types
   STATUS: {
     IDLE: 'idle',
+    PENDING: 'pending',
     PROCESSING: 'processing',
     SUCCESS: 'success',
     COMPLETED: 'completed',

@@ -8,6 +8,13 @@ class FitGirlDownloadManager {
     this.downloader = downloader;
   }
 
+  icon(name, sizeClass) {
+    if (typeof FitGirlIcons !== 'undefined' && typeof FitGirlIcons.icon === 'function') {
+      return FitGirlIcons.icon(name, sizeClass);
+    }
+    return '';
+  }
+
   /**
    * Check if a URL is a fuckingfast.co file page (not /dl/, not FitGirl paste page).
    */
@@ -76,14 +83,14 @@ class FitGirlDownloadManager {
 
   async downloadSingleFile(url) {
     if (this.downloader.isProcessing) {
-      this.downloader.showNotification('\u26A0\uFE0F Busy', 'A download is already in progress');
+      this.downloader.showNotification('Busy', 'A download is already in progress');
       return;
     }
 
     this.downloader.isProcessing = true;
 
     const filename = this.downloader.getFilenameFromUrl(url);
-    this.downloader.updateStatus('\u{1F4E5} Downloading: ' + filename + '...');
+    this.downloader.updateStatus('Downloading: ' + filename + '...');
     this.setFileStatus(url, CONFIG.STATUS.PROCESSING);
 
     try {
@@ -103,7 +110,7 @@ class FitGirlDownloadManager {
         // content script runs on the file's own page).
         if (!downloadUrl && this.isCurrentFilePage(url) &&
             this.isFuckingFastFilePage(url) && this.tryTriggerPageDownload()) {
-          this.downloader.updateStatus('\u{1F4E5} Download triggered via page button: ' + filename);
+          this.downloader.updateStatus('Download triggered via page button: ' + filename);
           return;
         }
       }
@@ -111,31 +118,50 @@ class FitGirlDownloadManager {
       if (downloadUrl) {
         await this.initiateDownload(downloadUrl, url);
         this.setFileStatus(url, CONFIG.STATUS.SUCCESS);
-        this.downloader.updateStatus('\u2705 Downloaded: ' + filename);
-        this.downloader.showNotification('\u2705 Success', filename + ' downloaded');
+        this.downloader.updateStatus('Downloaded: ' + filename);
+        this.downloader.showNotification('Success', filename + ' downloaded');
       } else {
         throw new Error('Failed to extract download URL');
       }
     } catch (error) {
       console.error('Download failed for ' + url + ':', error);
       this.setFileStatus(url, CONFIG.STATUS.FAILED, error.message);
-      this.downloader.updateStatus('\u274C Failed: ' + filename);
-      this.downloader.showNotification('\u274C Error', error.message);
+      this.downloader.updateStatus('Failed: ' + filename);
+      this.downloader.showNotification('Error', error.message);
     } finally {
       this.downloader.isProcessing = false;
     }
   }
 
+  /**
+   * Put the Start/Stop pair back into its idle state. Safe to call at any
+   * point, including after an early return from startBulkDownload().
+   */
+  resetRunControls() {
+    const { startBtn, stopBtn } = this.downloader.cachedElements || {};
+
+    if (startBtn) {
+      startBtn.style.display = 'block';
+      startBtn.disabled = false;
+    }
+
+    if (stopBtn) {
+      stopBtn.style.display = 'none';
+      stopBtn.disabled = false;
+      stopBtn.innerHTML = this.icon('stop', 'fg-icon-sm') + ' Stop';
+    }
+  }
+
   async startBulkDownload(resumeFromIndex = null, resumeFiles = null) {
     if (this.downloader.isProcessing) {
-      this.downloader.showNotification('\u26A0\uFE0F Busy', 'Download process already running');
+      this.downloader.showNotification('Busy', 'Download process already running');
       return;
     }
 
     const selectedFiles = resumeFiles || this.downloader.getSelectedFiles();
 
     if (selectedFiles.length === 0) {
-      this.downloader.showNotification('\u274C No Files', 'No files selected for download');
+      this.downloader.showNotification('No files', 'No files selected for download');
       return;
     }
 
@@ -145,26 +171,34 @@ class FitGirlDownloadManager {
 
     const { startBtn, stopBtn } = this.downloader.cachedElements;
     startBtn.style.display = 'none';
-    stopBtn.style.display = 'block';
+    startBtn.disabled = true;
 
-    this.downloader.updateStatus('\u{1F4E5} Starting download of ' + selectedFiles.length + ' files...');
+    // A previous run may have left Stop disabled ("Stopping..." state) if the
+    // page was cleared or the run ended early. Always re-arm it per run.
+    stopBtn.style.display = 'block';
+    stopBtn.disabled = false;
+    stopBtn.innerHTML = this.icon('stop', 'fg-icon-sm') + ' Stop';
+
+    this.downloader.updateStatus('Starting download of ' + selectedFiles.length + ' files...');
 
     let success = 0;
     let failures = 0;
     let consecutiveFailures = 0;
 
+    // Snapshot the already-downloaded list once per run. Files added to it by
+    // this run must not make later iterations skip, so the set is frozen here.
     const completedResponse = await browserAPI.runtime.sendMessage({
       action: 'getStorage',
       keys: [CONFIG.STORAGE_KEYS.COMPLETED_URLS]
     });
-    const completedUrls = new Set(completedResponse.success ?
+    const completedUrls = new Set(completedResponse?.success ?
       completedResponse.data[CONFIG.STORAGE_KEYS.COMPLETED_URLS] || [] : []);
 
     for (let i = this.downloader.currentIndex; i < selectedFiles.length; i++) {
       if (this.downloader.shouldStop) {
         await this.downloader.savePauseState(i, selectedFiles);
-        this.downloader.updateStatus('\u23F8\uFE0F Paused');
-        this.downloader.showNotification('\u23F8\uFE0F Paused', 'Download paused. You can resume later.');
+        this.downloader.updateStatus('Paused');
+        this.downloader.showNotification('Paused', 'Download paused. You can resume later.');
         break;
       }
 
@@ -172,7 +206,7 @@ class FitGirlDownloadManager {
       this.downloader.currentIndex = i;
 
       if (completedUrls.has(file.url)) {
-        this.downloader.updateStatus('[\u2713] Skipping already downloaded: ' + this.downloader.getFilenameFromUrl(file.url));
+        this.downloader.updateStatus('Skipping already downloaded: ' + this.downloader.getFilenameFromUrl(file.url));
         this.setFileStatus(file.url, CONFIG.STATUS.COMPLETED);
         continue;
       }
@@ -226,9 +260,9 @@ class FitGirlDownloadManager {
         consecutiveFailures++;
 
         if (consecutiveFailures >= CONFIG.CONSECUTIVE_FAILURES_THRESHOLD) {
-          this.downloader.updateStatus('\u26A0\uFE0F Too many consecutive failures. Pausing...');
+          this.downloader.updateStatus('Too many consecutive failures. Pausing...');
           await this.downloader.savePauseState(i + 1, selectedFiles);
-          this.downloader.showNotification('\u26A0\uFE0F Paused', consecutiveFailures + ' consecutive failures. Please check your connection.');
+          this.downloader.showNotification('Paused', consecutiveFailures + ' consecutive failures. Please check your connection.');
           break;
         }
       }
@@ -240,15 +274,16 @@ class FitGirlDownloadManager {
 
     this.downloader.isProcessing = false;
 
-    const { startBtn: sb, stopBtn: stb } = this.downloader.cachedElements;
-    sb.style.display = 'block';
-    stb.style.display = 'none';
+    const stoppedByUser = this.downloader.shouldStop;
+    this.downloader.shouldStop = false;
 
-    if (!this.downloader.shouldStop) {
+    this.resetRunControls();
+
+    if (!stoppedByUser) {
       await this.downloader.clearPauseState();
-      this.downloader.updateStatus('\u2705 Complete: ' + success + ' successful, ' + failures + ' failed');
+      this.downloader.updateStatus('Complete: ' + success + ' successful, ' + failures + ' failed');
       this.downloader.showNotification(
-        '\u{1F4CA} Download Complete',
+        'Download complete',
         'Processed ' + selectedFiles.length + ' files: ' + success + ' successful, ' + failures + ' failed'
       );
     }
@@ -258,12 +293,12 @@ class FitGirlDownloadManager {
     if (!this.downloader.isProcessing) return;
 
     this.downloader.shouldStop = true;
-    this.downloader.updateStatus('\u23F9\uFE0F Stopping after current file...');
+    this.downloader.updateStatus('Stopping after current file...');
 
     const { stopBtn } = this.downloader.cachedElements;
     if (stopBtn) {
       stopBtn.disabled = true;
-      stopBtn.textContent = '\u23F9\uFE0F Stopping...';
+      stopBtn.innerHTML = this.icon('stop', 'fg-icon-sm') + ' Stopping...';
     }
   }
 
@@ -334,20 +369,24 @@ class FitGirlDownloadManager {
 
     statusContainer.innerHTML = '';
     actionsContainer.innerHTML = '';
+    actionsContainer.classList.remove('always');
+
+    fileItem.status = status;
 
     const badge = document.createElement('span');
-    badge.className = 'fg-badge fg-badge-' + status;
 
-    const statusIcons = {
-      [CONFIG.STATUS.PROCESSING]: '\u23F3',
-      [CONFIG.STATUS.SUCCESS]: '\u2705',
-      [CONFIG.STATUS.FAILED]: '\u274C',
-      [CONFIG.STATUS.COMPLETED]: '\u2713',
-      [CONFIG.STATUS.RETRYING]: '\u{1F504}',
-      [CONFIG.STATUS.SKIPPED]: '\u23ED\uFE0F'
+    const tagClasses = {
+      [CONFIG.STATUS.PENDING]: 'fg-tag-pending',
+      [CONFIG.STATUS.PROCESSING]: 'fg-tag-proc',
+      [CONFIG.STATUS.SUCCESS]: 'fg-tag-ok',
+      [CONFIG.STATUS.COMPLETED]: 'fg-tag-ok',
+      [CONFIG.STATUS.FAILED]: 'fg-tag-err',
+      [CONFIG.STATUS.RETRYING]: 'fg-tag-proc',
+      [CONFIG.STATUS.SKIPPED]: 'fg-tag-skip'
     };
 
     const statusTexts = {
+      [CONFIG.STATUS.PENDING]: 'Pending',
       [CONFIG.STATUS.PROCESSING]: 'Processing',
       [CONFIG.STATUS.SUCCESS]: 'Success',
       [CONFIG.STATUS.FAILED]: 'Failed',
@@ -356,7 +395,15 @@ class FitGirlDownloadManager {
       [CONFIG.STATUS.SKIPPED]: 'Skipped'
     };
 
-    badge.textContent = statusIcons[status] + ' ' + statusTexts[status];
+    badge.className = 'fg-tag ' + (tagClasses[status] || 'fg-tag-skip');
+
+    if (status === CONFIG.STATUS.PROCESSING || status === CONFIG.STATUS.RETRYING) {
+      const spinner = document.createElement('i');
+      spinner.className = 'fg-spinner';
+      badge.appendChild(spinner);
+    }
+
+    badge.appendChild(document.createTextNode(statusTexts[status] || 'Unknown'));
 
     if (errorMessage) {
       badge.title = errorMessage;
@@ -364,12 +411,23 @@ class FitGirlDownloadManager {
 
     statusContainer.appendChild(badge);
 
-    if (status === CONFIG.STATUS.FAILED) {
+    const canRetry =
+      status === CONFIG.STATUS.FAILED ||
+      status === CONFIG.STATUS.SUCCESS ||
+      status === CONFIG.STATUS.COMPLETED;
+
+    if (canRetry) {
       const retryBtn = document.createElement('button');
       retryBtn.className = 'fg-btn fg-btn-xs fg-retry-file';
-      retryBtn.textContent = '\u{1F504} Retry';
+      retryBtn.innerHTML = this.icon('retry', 'fg-icon-sm') + ' Retry';
       retryBtn.dataset.url = url;
+      retryBtn.title = status === CONFIG.STATUS.FAILED
+        ? 'Retry this download'
+        : 'Download this file again';
       actionsContainer.appendChild(retryBtn);
+
+      // Keep the action visible for completed rows even without hover.
+      actionsContainer.classList.add('always');
     }
   }
 
@@ -378,7 +436,7 @@ class FitGirlDownloadManager {
     if (!fileItem) return;
 
     this.setFileStatus(url, CONFIG.STATUS.RETRYING);
-    this.downloader.updateStatus('\u{1F504} Retrying: ' + this.downloader.getFilenameFromUrl(url));
+    this.downloader.updateStatus('Retrying: ' + this.downloader.getFilenameFromUrl(url));
 
     try {
       let downloadUrl = url;
@@ -393,7 +451,7 @@ class FitGirlDownloadManager {
 
         if (!downloadUrl && this.isCurrentFilePage(url) &&
             this.isFuckingFastFilePage(url) && this.tryTriggerPageDownload()) {
-          this.downloader.updateStatus('\u{1F504} Retry triggered via page button');
+          this.downloader.updateStatus('Retry triggered via page button');
           return;
         }
       }
@@ -401,14 +459,14 @@ class FitGirlDownloadManager {
       if (downloadUrl) {
         await this.initiateDownload(downloadUrl, url);
         this.setFileStatus(url, CONFIG.STATUS.SUCCESS);
-        this.downloader.showNotification('\u2705 Retry Successful', 'File downloaded successfully');
+        this.downloader.showNotification('Retry successful', 'File downloaded successfully');
       } else {
         throw new Error('Could not extract download URL');
       }
     } catch (error) {
       console.error('Retry failed for ' + url + ':', error);
       this.setFileStatus(url, CONFIG.STATUS.FAILED, error.message);
-      this.downloader.showNotification('\u274C Retry Failed', error.message);
+      this.downloader.showNotification('Retry failed', error.message);
     }
   }
 }

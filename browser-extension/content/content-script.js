@@ -192,6 +192,7 @@ class FitGirlDownloader {
       toggleSelectCheckbox: document.querySelector('.fg-toggle-select-checkbox'),
       toggleSelectText: document.querySelector('.fg-toggle-select-text'),
       resetBtn: document.querySelector('.fg-reset-selection'),
+      clearPageBtn: document.querySelector('.fg-clear-page'),
       toggleLinksBtn: document.querySelector('.fg-toggle-links'),
       counterText: document.querySelector('.fg-counter-text'),
       statusText: document.querySelector('.fg-status-text'),
@@ -199,7 +200,7 @@ class FitGirlDownloader {
       progressText: document.querySelector('.fg-progress-text'),
       calcSizesBtn: document.querySelector('.fg-calc-sizes-btn'),
       cancelSizesBtn: document.querySelector('.fg-cancel-sizes-btn'),
-      sizeUnknownOnlyCheckbox: document.querySelector('.fg-size-unknown-checkbox'),
+
       sizeProgressText: document.querySelector('.fg-size-progress-text'),
       packageSummary: document.querySelector('.fg-package-summary')
     };
@@ -241,7 +242,7 @@ class FitGirlDownloader {
   }
 
   bindEventHandlers() {
-    const { startBtn, stopBtn, fileSearchInput, toggleSelectCheckbox, resetBtn, toggleLinksBtn } = this.cachedElements;
+    const { startBtn, stopBtn, fileSearchInput, toggleSelectCheckbox, resetBtn, clearPageBtn, toggleLinksBtn } = this.cachedElements;
 
     if (startBtn && startBtn.dataset.fgBoundStart !== 'true') {
       startBtn.addEventListener('click', () => this.startBulkDownload());
@@ -261,6 +262,11 @@ class FitGirlDownloader {
     if (resetBtn && resetBtn.dataset.fgBoundReset !== 'true') {
       resetBtn.addEventListener('click', () => this.resetSelection());
       resetBtn.dataset.fgBoundReset = 'true';
+    }
+
+    if (clearPageBtn && clearPageBtn.dataset.fgBoundClearPage !== 'true') {
+      clearPageBtn.addEventListener('click', () => this.clearDownloadPageState());
+      clearPageBtn.dataset.fgBoundClearPage = 'true';
     }
 
     if (toggleLinksBtn && toggleLinksBtn.dataset.fgBoundLinks !== 'true') {
@@ -369,8 +375,8 @@ class FitGirlDownloader {
 
   async startManualSizeCalculation() {
     if (!this.sizeComputeManager) return;
-    const onlyUnknown = Boolean(this.cachedElements.sizeUnknownOnlyCheckbox?.checked);
-    await this.sizeComputeManager.startManualCalculation({ onlyUnknown });
+    // Only files without a known size are probed; known sizes come from cache.
+    await this.sizeComputeManager.startManualCalculation();
   }
 
   async cancelManualSizeCalculation() {
@@ -416,6 +422,60 @@ class FitGirlDownloader {
   async resetSelection() {
     if (!this.selectionManager) return;
     await this.selectionManager.resetSelection();
+  }
+
+  /**
+   * Wipe every bit of persisted state for this page (selections, skips,
+   * cached sizes and pause state) and reload the list from scratch.
+   */
+  async clearDownloadPageState() {
+    const confirmed = window.confirm(
+      'Clear saved selections, skips and size results for this page? This cannot be undone.'
+    );
+    if (!confirmed) return;
+
+    try {
+      await this.clearPageState();
+
+      // Drop the delegated-listener flag so the rebuilt list binds cleanly.
+      const fileList = this.cachedElements.fileList;
+      if (fileList) {
+        delete fileList.dataset.fgDelegated;
+        fileList.innerHTML = '';
+      }
+
+      const packageSummary = this.cachedElements.packageSummary;
+      if (packageSummary) {
+        packageSummary.innerHTML = '';
+      }
+
+      this.fileItems = [];
+      this.checkboxElements = [];
+      this.currentIndex = 0;
+      this.shouldStop = false;
+
+      // A run interrupted by Clear would otherwise leave Stop disabled and
+      // visible, so the next bulk run has no working stop control.
+      this.downloadManager?.resetRunControls();
+      this.updateStatus('Page state cleared');
+
+      if (this.linkListManager) {
+        await this.linkListManager.extractAndDisplayLinks();
+      }
+
+      this.updateCounter();
+      this.updateToggleButton();
+      this.updateProgress(0, this.fileItems.length || 1);
+
+      if (this.cachedElements.sizeProgressText) {
+        this.cachedElements.sizeProgressText.textContent = 'Size scan idle';
+      }
+
+      this.showNotification('Cleared', 'Saved state for this page was removed');
+    } catch (error) {
+      console.error('Failed to clear page state:', error);
+      this.showNotification('Clear failed', error.message || 'Unknown error');
+    }
   }
 
   updateCounter() {
@@ -467,6 +527,11 @@ class FitGirlDownloader {
   async clearPauseState() {
     if (!this.storageManager) return;
     await this.storageManager.clearPauseState();
+  }
+
+  async clearPageState() {
+    if (!this.storageManager) return;
+    await this.storageManager.clearPageState();
   }
 
   async checkPauseState() {

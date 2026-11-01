@@ -6,6 +6,13 @@ class FitGirlSelectionManager {
     this.downloader = downloader;
   }
 
+  icon(name, sizeClass) {
+    if (typeof FitGirlIcons !== 'undefined' && typeof FitGirlIcons.icon === 'function') {
+      return FitGirlIcons.icon(name, sizeClass);
+    }
+    return '';
+  }
+
   getSelectedFiles() {
     return this.downloader.fileItems.filter((item) => {
       if (item.isSkipped) return false;
@@ -28,16 +35,16 @@ class FitGirlSelectionManager {
     }
 
     const statusContainer = fileItem.element.querySelector('.fg-file-status');
-    statusContainer.innerHTML = '<span class="fg-badge fg-badge-skipped">Skipped</span>';
+    statusContainer.innerHTML = '<span class="fg-tag fg-tag-skip">Skipped</span>';
 
     const actionsContainer = fileItem.element.querySelector('.fg-file-actions');
-    actionsContainer.innerHTML = `<button class="fg-btn fg-btn-xs fg-undo-skip" data-url="${url}">↩️ Undo</button>`;
+    actionsContainer.innerHTML = `<button class="fg-btn fg-btn-xs fg-undo-skip" data-url="${url}">${this.icon('undo', 'fg-icon-sm')} Undo</button>`;
 
     this.downloader.refreshCheckboxCache();
     await this.downloader.saveSkippedFiles();
     this.downloader.updateCounter();
     this.downloader.updateToggleButton();
-    this.downloader.showNotification('⏭️ Skipped', 'File marked as skipped');
+    this.downloader.showNotification('Skipped', 'File marked as skipped');
   }
 
   async handleUndoSkip(url) {
@@ -58,8 +65,8 @@ class FitGirlSelectionManager {
 
     const actionsContainer = fileItem.element.querySelector('.fg-file-actions');
     actionsContainer.innerHTML = `
-      <button class="fg-btn fg-btn-xs fg-download-file" data-url="${url}">⬇️ Download</button>
-      <button class="fg-btn fg-btn-xs fg-skip-file" data-url="${url}">⏭️ Skip</button>
+      <button class="fg-btn fg-btn-xs fg-download-file" data-url="${url}">${this.icon('download', 'fg-icon-sm')} Download</button>
+      <button class="fg-btn fg-btn-xs fg-skip-file" data-url="${url}">${this.icon('skip', 'fg-icon-sm')} Skip</button>
     `;
 
     this.downloader.refreshCheckboxCache();
@@ -67,7 +74,7 @@ class FitGirlSelectionManager {
     this.downloader.debouncedSaveSelections();
     this.downloader.updateCounter();
     this.downloader.updateToggleButton();
-    this.downloader.showNotification('↩️ Restored', 'File restored to selection');
+    this.downloader.showNotification('Restored', 'File restored to selection');
   }
 
   selectAll() {
@@ -149,7 +156,7 @@ class FitGirlSelectionManager {
 
     this.downloader.updateCounter();
     this.downloader.updateToggleButton();
-    this.downloader.showNotification('🔄 Reset', 'Selections reset to default');
+    this.downloader.showNotification('Reset', 'Selections reset to default');
   }
 }
 

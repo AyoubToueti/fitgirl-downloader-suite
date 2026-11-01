@@ -851,13 +851,29 @@ async function handleSetStorage(request, sendResponse) {
 }
 
 /**
+ * Remove pictographic emoji and emoji skin-tone modifiers from a string.
+ * Flags, dingbats and symbol glyphs are dropped, ASCII and letters kept.
+ */
+function stripEmoji(text) {
+  if (typeof text !== 'string') return text;
+  return text
+    .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{200D}]/gu, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+/**
  * Show browser notification
  */
 async function handleShowNotification(request, sendResponse) {
   const { title, message } = request;
 
-  // Queue notification
-  notificationQueue.push({ title, message });
+  // Queue notification. Strip any pictographic emoji so the OS notification
+  // stays consistent with the extension's text-only UI.
+  const cleanTitle = stripEmoji(title);
+  const cleanMessage = stripEmoji(message);
+
+  notificationQueue.push({ title: cleanTitle, message: cleanMessage });
 
   // Clear existing timeout
   if (notificationTimeout) {

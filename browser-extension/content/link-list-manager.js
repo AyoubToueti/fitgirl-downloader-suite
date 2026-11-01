@@ -6,6 +6,13 @@ class FitGirlLinkListManager {
     this.downloader = downloader;
   }
 
+  icon(name, sizeClass) {
+    if (typeof FitGirlIcons !== 'undefined' && typeof FitGirlIcons.icon === 'function') {
+      return FitGirlIcons.icon(name, sizeClass);
+    }
+    return '';
+  }
+
   async extractAndDisplayLinks() {
     const links = this.getAllDownloadLinks();
     const fileListContainer = this.downloader.cachedElements.fileList;
@@ -20,6 +27,17 @@ class FitGirlLinkListManager {
     this.downloader.fileItems = [];
 
     const fragment = document.createDocumentFragment();
+
+    const head = document.createElement('div');
+    head.className = 'fg-file-list-head';
+    head.innerHTML = `
+      <span></span>
+      <span>Name</span>
+      <span style="text-align:right">Size</span>
+      <span>Status</span>
+      <span></span>
+    `;
+    fragment.appendChild(head);
 
     links.forEach((link, index) => {
       const fileItem = this.createFileItem(link, index, selections, skippedFiles, sizeResults);
@@ -53,6 +71,8 @@ class FitGirlLinkListManager {
       fileItem.classList.add('fg-file-skipped');
     }
 
+    const ico = this.icon.bind(this);
+
     fileItem.innerHTML = `
       <div class="fg-file-checkbox">
         <input type="checkbox"
@@ -64,16 +84,18 @@ class FitGirlLinkListManager {
       <div class="fg-file-info">
         <div class="fg-file-name">${this.downloader.escapeHtml(this.downloader.getFilenameFromUrl(link.url))}</div>
         <div class="fg-file-url">${this.downloader.escapeHtml(link.url)}</div>
-        <div class="fg-file-size" data-size-url="${link.url}">${sizeText}</div>
       </div>
+      <div class="fg-file-size${sizeResult && sizeResult.status === CONFIG.SIZE_STATUS.KNOWN ? ' is-known' : ''}${sizeResult && sizeResult.status !== CONFIG.SIZE_STATUS.KNOWN ? ' is-unknown' : ''}" data-size-url="${link.url}">${sizeText}</div>
       <div class="fg-file-status">
-        ${isSkipped ? '<span class="fg-badge fg-badge-skipped">Skipped</span>' : ''}
+        ${isSkipped
+          ? '<span class="fg-tag fg-tag-skip">Skipped</span>'
+          : '<span class="fg-tag fg-tag-pending">Pending</span>'}
       </div>
       <div class="fg-file-actions">
         ${isSkipped ?
-        `<button class="fg-btn fg-btn-xs fg-undo-skip" data-url="${link.url}">↩️ Undo</button>` :
-        `<button class="fg-btn fg-btn-xs fg-download-file" data-url="${link.url}">⬇️ Download</button>
-         <button class="fg-btn fg-btn-xs fg-skip-file" data-url="${link.url}">⏭️ Skip</button>`
+        `<button class="fg-btn fg-btn-xs fg-undo-skip" data-url="${link.url}">${ico('undo', 'fg-icon-sm')} Undo</button>` :
+        `<button class="fg-btn fg-btn-xs fg-download-file" data-url="${link.url}">${ico('download', 'fg-icon-sm')} Download</button>
+         <button class="fg-btn fg-btn-xs fg-skip-file" data-url="${link.url}">${ico('skip', 'fg-icon-sm')} Skip</button>`
       }
       </div>
     `;
@@ -83,7 +105,8 @@ class FitGirlLinkListManager {
       url: link.url,
       text: link.text,
       index,
-      isSkipped
+      isSkipped,
+      status: isSkipped ? CONFIG.STATUS.SKIPPED : CONFIG.STATUS.PENDING
     };
   }
 
@@ -184,18 +207,18 @@ class FitGirlLinkListManager {
 
   formatSizeResult(result) {
     if (!result) {
-      return 'Size: not calculated';
+      return 'Not calculated';
     }
 
     if (result.status === CONFIG.SIZE_STATUS.KNOWN && Number.isFinite(result.bytes)) {
-      return `Size: ${this.formatBytes(result.bytes)}`;
+      return this.formatBytes(result.bytes);
     }
 
     if (result.status === CONFIG.SIZE_STATUS.UNKNOWN) {
-      return 'Size: unknown';
+      return 'Unknown';
     }
 
-    return 'Size: calculating...';
+    return 'Calculating...';
   }
 
   formatBytes(bytes) {

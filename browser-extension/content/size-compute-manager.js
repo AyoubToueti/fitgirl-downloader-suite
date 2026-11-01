@@ -12,13 +12,16 @@ class FitGirlSizeComputeManager {
     this.latestResults = {};
   }
 
-  async startManualCalculation(options = {}) {
+  /**
+   * Probe every file that does not yet have a known size.
+   * Files already cached as KNOWN are skipped; previously UNKNOWN results are
+   * re-probed so a transient failure can be recovered by clicking again.
+   */
+  async startManualCalculation() {
     if (this.isRunning) {
-      this.downloader.showNotification('ℹ️ Size Scan', 'Size calculation is already running');
+      this.downloader.showNotification('Size scan', 'Size calculation is already running');
       return;
     }
-
-    const onlyUnknown = Boolean(options.onlyUnknown);
 
     const pageState = await this.downloader.loadPageState();
     const sizeResults = pageState.sizeResults || {};
@@ -27,17 +30,13 @@ class FitGirlSizeComputeManager {
       .map((item) => item.url)
       .filter((url) => typeof url === 'string' && url.trim())
       .filter((url) => {
-        if (!onlyUnknown) return true;
-
         const current = sizeResults[url];
         return !(current && current.status === CONFIG.SIZE_STATUS.KNOWN && Number.isFinite(current.bytes));
       });
 
     if (urls.length === 0) {
-      const message = onlyUnknown
-        ? 'All files already have known sizes'
-        : 'No links found to calculate sizes';
-      this.downloader.showNotification('ℹ️ Size Scan', message);
+      const message = 'All files already have known sizes';
+      this.downloader.showNotification('Size scan', message);
       this.downloader.pageUIManager?.setSizeProgressText(message);
       return;
     }
@@ -47,13 +46,13 @@ class FitGirlSizeComputeManager {
     this.latestResults = {};
 
     this.downloader.pageUIManager?.setSizeCalculationState(true);
-    this.downloader.pageUIManager?.setSizeProgressText(`Starting size scan for ${urls.length} files${onlyUnknown ? ' (unknown only)' : ''}...`);
+    this.downloader.pageUIManager?.setSizeProgressText(`Calculating size for ${urls.length} file${urls.length === 1 ? '' : 's'}...`);
 
     try {
       const response = await browserAPI.runtime.sendMessage({
         action: 'startSizeCalculation',
         urls,
-        ignoreCacheForUnknown: onlyUnknown
+        ignoreCacheForUnknown: true
       });
 
       if (!response || !response.success || !response.taskId) {
@@ -154,7 +153,7 @@ class FitGirlSizeComputeManager {
     this.activeTaskId = null;
     this.downloader.pageUIManager?.setSizeCalculationState(false);
     this.downloader.pageUIManager?.setSizeProgressText(`Size scan failed: ${message}`);
-    this.downloader.showNotification('❌ Size Scan Failed', message);
+    this.downloader.showNotification('Size scan failed', message);
   }
 
   stopPolling() {
