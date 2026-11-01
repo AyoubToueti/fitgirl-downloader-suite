@@ -108,6 +108,15 @@ directly. On a link page, **Extract & download** resolves the real URL first.
 
 4. Open a FitGirl Repacks page with download links to verify.
 
+An unpacked extension never updates itself, and Chrome offers no mechanism to
+change that outside the Web Store or an enterprise-managed install. To keep
+users informed, the popup checks GitHub once a day and shows a banner naming the
+newer version, with a link to the release page.
+
+To apply an update: pull the new commits, then click the reload icon on the
+extension card in `chrome://extensions`. Firefox does not need this step; its
+signed build updates on its own.
+
 There is no build step: the extension runs directly from source, and the same
 folder loads in both engines.
 

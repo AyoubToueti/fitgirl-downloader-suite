@@ -70,6 +70,10 @@ browserAPI.runtime.onMessage.addListener((request, sender, sendResponse) => {
       handleCancelSizeCalculation(request, sendResponse);
       return true;
 
+    case 'checkForUpdate':
+      handleCheckForUpdate(request, sendResponse);
+      return true;
+
     default:
       sendResponse({ success: false, error: 'Unknown action' });
       return false;
@@ -893,6 +897,80 @@ async function handleSetStorage(request, sendResponse) {
     await browserAPI.storage.local.set(data);
     sendResponse({ success: true });
   } catch (error) {
+    sendResponse({ success: false, error: error.message });
+  }
+}
+
+/**
+ * Look for a newer extension release on GitHub.
+ *
+ * Chrome cannot auto-update an unpacked extension, so the popup only shows a
+ * "new version available" notice. The result is cached in storage.local and
+ * re-checked at most once a day; the popup renders the cache immediately and
+ * never waits on the network.
+ *
+ * /releases/latest is NOT used: it is repo-wide, and the userscript publishes
+ * userscript-v* releases in the same repository, so "latest" may not be an
+ * extension release at all. Listing and filtering on tag_name avoids that.
+ */
+const UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
+const UPDATE_CHECK_KEY = 'update_check';
+const UPDATE_RELEASES_URL =
+  'https://api.github.com/repos/AyoubToueti/fitgirl-downloader-suite/releases?per_page=100';
+
+async function handleCheckForUpdate(request, sendResponse) {
+  try {
+    const result = await browserAPI.storage.local.get([UPDATE_CHECK_KEY]);
+    const cached = result[UPDATE_CHECK_KEY] || null;
+
+    // Throttle: at most one network call per day per profile.
+    if (cached && typeof cached.checkedAt === 'number' &&
+        Date.now() - cached.checkedAt < UPDATE_CHECK_INTERVAL_MS) {
+      sendResponse({ success: true, data: cached, cached: true });
+      return;
+    }
+
+    const response = await fetch(UPDATE_RELEASES_URL, {
+      headers: { 'Accept': 'application/vnd.github+json' }
+    });
+
+    if (!response.ok) {
+      // Rate limit or transient failure: keep the previous cache, report no data.
+      sendResponse({ success: false, error: 'HTTP ' + response.status, data: cached });
+      return;
+    }
+
+    const releases = await response.json();
+    if (!Array.isArray(releases)) {
+      sendResponse({ success: false, error: 'Unexpected response shape', data: cached });
+      return;
+    }
+
+    // GitHub returns newest first; take the first extension release.
+    const release = releases.find((entry) =>
+      entry && typeof entry.tag_name === 'string' &&
+      entry.tag_name.startsWith('extension-v') && !entry.draft
+    );
+
+    if (!release) {
+      sendResponse({ success: false, error: 'No extension release found', data: cached });
+      return;
+    }
+
+    const next = {
+      checkedAt: Date.now(),
+      latestVersion: release.tag_name.slice('extension-v'.length),
+      latestTag: release.tag_name,
+      releaseUrl: release.html_url || ('https://github.com/AyoubToueti/fitgirl-downloader-suite/releases/tag/' + release.tag_name),
+      // Preserve a dismissal so the same version is not advertised twice.
+      dismissedVersion: cached ? cached.dismissedVersion || null : null
+    };
+
+    await browserAPI.storage.local.set({ [UPDATE_CHECK_KEY]: next });
+    sendResponse({ success: true, data: next });
+  } catch (error) {
+    // Offline or blocked: never surface this to the user.
+    console.error('FitGirl Downloader: update check failed:', error);
     sendResponse({ success: false, error: error.message });
   }
 }

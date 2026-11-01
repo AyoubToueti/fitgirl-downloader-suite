@@ -2,6 +2,30 @@
 
 All notable changes to the FitGirl FDM Downloader Extension will be documented in this file.
 
+## [0.4.1] - 2026-11-01
+
+### Added
+
+- **Update notice in the popup.** Chrome cannot auto-update an extension that
+  was loaded unpacked, so the popup now tells you when a newer release exists
+  instead of leaving you to check by hand. A short banner appears under the
+  header with the version, a **View** button that opens the release page and a
+  dismiss button.
+
+### Notes
+
+- The check runs from the background script at most once every 24 hours and is
+  cached in storage, so opening the popup never waits on the network. The banner
+  renders instantly from the cache and updates if a newer result arrives.
+- Releases are listed and filtered on `extension-v*` rather than using
+  `releases/latest`: the userscript publishes its own releases in the same
+  repository, so "latest" is not necessarily an extension release.
+- Failures are silent by design. Offline, rate-limited or blocked requests show
+  nothing and leave the previous cache untouched.
+- The new `host_permissions` entry is scoped to this repository's API path only.
+- This is a notice, not an update: nothing is downloaded or installed. Chrome
+  users still pull the change and click **Reload** on the extension card.
+
 ## [0.4.0] - 2026-11-01
 
 ### Added

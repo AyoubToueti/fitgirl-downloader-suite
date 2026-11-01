@@ -103,6 +103,64 @@ body {
   box-shadow: 0 0 0 2px rgba(46, 125, 79, 0.15);
 }
 
+/* Update notice (Chrome cannot auto-update unpacked extensions) */
+.popup-update {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 12px;
+  background: var(--accent-soft);
+  border-bottom: 1px solid var(--accent-line);
+}
+
+.update-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex: none;
+  border-radius: var(--r);
+  background: var(--surface);
+  border: 1px solid var(--accent-line);
+  color: var(--accent);
+}
+
+.update-icon::before {
+  content: "";
+  width: 2px;
+  height: 8px;
+  border-radius: 1px;
+  background: currentColor;
+  box-shadow: 0 -4px 0 -1px currentColor;
+}
+
+.update-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.update-info strong {
+  display: block;
+  font-size: var(--fs-base);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.update-info p {
+  margin-top: 2px;
+  font-size: var(--fs-sm);
+  color: var(--dim);
+  line-height: 1.35;
+}
+
+.update-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
+
 /* Stats */
 .popup-stats {
   display: grid;

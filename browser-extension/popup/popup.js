@@ -89,7 +89,11 @@ function cacheElements() {
     dlMethodApi: document.getElementById('dl-method-api'),
     dlMethodStatus: document.getElementById('dl-method-status'),
     dlMethodInputs: Array.from(document.querySelectorAll('input[name="dl-method"]')),
-    themeToggle: document.getElementById('theme-toggle')
+    themeToggle: document.getElementById('theme-toggle'),
+    updateBanner: document.getElementById('update-banner'),
+    updateVersionLine: document.getElementById('update-version-line'),
+    updateViewBtn: document.getElementById('update-view-btn'),
+    updateDismissBtn: document.getElementById('update-dismiss-btn')
   };
 
   if (typeof FitGirlTheme !== 'undefined' && typeof FitGirlTheme.bindToggle === 'function') {
@@ -105,6 +109,9 @@ const STORAGE_KEYS = {
   DOWNLOAD_STATS: 'download_stats',
   USER_PREFERENCES: (typeof CONFIG !== 'undefined' && CONFIG.STORAGE_KEYS?.USER_PREFERENCES) || 'user_preferences'
 };
+
+// Cache written by the background `checkForUpdate` handler.
+const UPDATE_CHECK_KEY = 'update_check';
 
 const UI_MODES = {
   MODAL: (typeof CONFIG !== 'undefined' && CONFIG.UI_MODES?.MODAL) || 'modal',
@@ -133,10 +140,14 @@ async function init() {
     loadStats(),
     checkPauseState(),
     loadUIModePreference(),
-    loadDownloadMethodPreference()
+    loadDownloadMethodPreference(),
+    loadUpdateState()
   ]);
   
   bindEventHandlers();
+
+  // Non-blocking: the banner above already rendered from cache.
+  checkForUpdate();
   
   // Listen for storage changes with debouncing
   const debouncedStorageHandler = perfUtils.debounce((changes, area) => {
@@ -343,6 +354,19 @@ function bindEventHandlers() {
     });
     input.dataset.bound = 'true';
   });
+
+  // Update notice controls
+  if (elements.updateViewBtn && !elements.updateViewBtn.dataset.bound) {
+    elements.updateViewBtn.addEventListener('click', openUpdateRelease);
+    elements.updateViewBtn.dataset.bound = 'true';
+  }
+
+  if (elements.updateDismissBtn && !elements.updateDismissBtn.dataset.bound) {
+    elements.updateDismissBtn.addEventListener('click', () => {
+      dismissUpdate(shownUpdateVersion).catch(() => {});
+    });
+    elements.updateDismissBtn.dataset.bound = 'true';
+  }
 }
 
 function normalizeUIMode(mode) {
@@ -602,6 +626,107 @@ function handleStorageChange(changes) {
   
   if (changes[STORAGE_KEYS.PAUSE_STATE]) {
     checkPauseState();
+  }
+
+  if (changes[UPDATE_CHECK_KEY]) {
+    const next = changes[UPDATE_CHECK_KEY].newValue;
+    renderUpdateBanner(next);
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Update notice
+ *
+ * Chrome cannot auto-update an unpacked extension. The background checks
+ * GitHub at most once a day and caches the result; this renders from the
+ * cache immediately and refreshes silently in the background.
+ * ------------------------------------------------------------------ */
+
+function compareVersions(a, b) {
+  const pa = String(a).split('.').map(Number);
+  const pb = String(b).split('.').map(Number);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const diff = (pa[i] || 0) - (pb[i] || 0);
+    if (diff !== 0) return diff;
+  }
+  return 0;
+}
+
+function currentVersion() {
+  try {
+    return browserAPI.runtime.getManifest().version;
+  } catch (e) {
+    return '0';
+  }
+}
+
+// Version currently advertised by the banner, kept so dismiss does not have to
+// parse it back out of the label.
+let shownUpdateVersion = null;
+
+function renderUpdateBanner(cache) {
+  const banner = elements.updateBanner;
+  if (!banner) return;
+
+  const latest = cache && cache.latestVersion;
+  const dismissed = cache && cache.dismissedVersion;
+  const isNewer = latest && compareVersions(latest, currentVersion()) > 0;
+
+  if (!isNewer || latest === dismissed) {
+    banner.style.display = 'none';
+    shownUpdateVersion = null;
+    return;
+  }
+
+  shownUpdateVersion = latest;
+  if (elements.updateVersionLine) {
+    elements.updateVersionLine.textContent = 'Version ' + latest + ' is available';
+  }
+  banner.style.display = 'flex';
+}
+
+async function loadUpdateState() {
+  try {
+    const result = await browserAPI.storage.local.get([UPDATE_CHECK_KEY]);
+    renderUpdateBanner(result[UPDATE_CHECK_KEY]);
+  } catch (error) {
+    console.error('Error loading update state:', error);
+  }
+}
+
+function checkForUpdate() {
+  // Fire and forget: a failure here must never be visible to the user.
+  browserAPI.runtime.sendMessage({ action: 'checkForUpdate' })
+    .then((response) => {
+      if (response && response.success && response.data) {
+        renderUpdateBanner(response.data);
+      }
+    })
+    .catch(() => {});
+}
+
+async function dismissUpdate(latestVersion) {
+  try {
+    const result = await browserAPI.storage.local.get([UPDATE_CHECK_KEY]);
+    const cache = result[UPDATE_CHECK_KEY] || {};
+    cache.dismissedVersion = latestVersion || null;
+    await setStorageViaBackground({ [UPDATE_CHECK_KEY]: cache });
+    renderUpdateBanner(cache);
+  } catch (error) {
+    console.error('Error dismissing update:', error);
+  }
+}
+
+async function openUpdateRelease() {
+  try {
+    const result = await browserAPI.storage.local.get([UPDATE_CHECK_KEY]);
+    const url = (result[UPDATE_CHECK_KEY] || {}).releaseUrl;
+    if (!url) return;
+    await browserAPI.tabs.create({ url });
+  } catch (error) {
+    console.error('Could not open the release page:', error);
+  } finally {
+    window.close();
   }
 }
 

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "FitGirl Downloader",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "minimum_chrome_version": "121",
   "browser_specific_settings": {
     "gecko": {
@@ -20,7 +20,8 @@
   "host_permissions": [
     "https://paste.fitgirl-repacks.site/*",
     "https://fuckingfast.co/*",
-    "https://*.fuckingfast.co/*"
+    "https://*.fuckingfast.co/*",
+    "https://api.github.com/repos/AyoubToueti/fitgirl-downloader-suite/*"
   ],
   "background": {
     "service_worker": "background/background.js",

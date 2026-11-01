@@ -26,6 +26,23 @@ no package manager; the `browser-extension` folder is the extension.
    modal mode, an **Open downloader** button appears next to the page's download
    heading.
 
+### Updating a Chrome install
+
+An unpacked extension never updates itself. Chrome offers no mechanism for that
+outside the Web Store or an enterprise-managed install, so the extension checks
+GitHub once a day and shows a banner in the popup naming any newer version, with
+a **View** button to its release page.
+
+To apply an update:
+
+1. Pull the new commits into your local copy.
+
+2. Open `chrome://extensions` and click the reload icon on the extension card.
+
+3. Reload any open FitGirl page so the content script picks up the change.
+
+Firefox does not need this — its signed build updates on its own.
+
 ## Firefox
 
 There are two ways to run this in Firefox. Only the first updates itself.
