@@ -6,7 +6,7 @@ Choose the approach that fits your needs:
 
 | Project | Tech Stack | Best For |
 |--------|-----------|--------|
-| **`browser-extension`** ⭐ | Chrome Extension (MV3) | Users who want **one-click native browser integration** with pause/resume, file selection, and retry |
+| **`browser-extension`** | Chrome Extension (MV3) | Users who want **one-click native browser integration** with pause/resume, file selection, and retry |
 | **`Tampermonkey-userscript`** | Userscript (JS) | Users who prefer **userscripts** and already have Tampermonkey installed |
 | **`browser-automation`** | Node.js + Puppeteer | Users who want **realistic browser interaction** and automation scripts |
 | **`python-downloader`** | Python (stdlib only) | Users who want **speed, simplicity, and minimal resource usage** — no browser needed, works with any download manager |
@@ -19,28 +19,28 @@ All tools:
 
 ---
 
-## 🔧 Projects Overview
+## Projects Overview
 
-### 1. [`browser-extension`](./browser-extension/) ⭐ **NEW!**
+### 1. [`browser-extension`](./browser-extension/) **NEW!**
 A **native browser extension** (Chrome/Edge) with advanced features:
-- **🧭 Dual UI Modes**: Switch between Modal UI and Inline UI from popup settings
-- **🔄 Instant Apply**: Changing UI mode auto-reloads the active tab
-- **⏹️ Stop & Resume**: Pause downloads and resume later (1-hour window)
-- **📋 File Selection**: Checkboxes to select/deselect specific files
-- **⏭️ Skip Functionality**: Skip unwanted files with undo option
-- **🔄 Comprehensive Retry**: Retry individual or all failed downloads
-- **🎨 Modern UI**: Card-based design with real-time progress tracking
-- **📊 Statistics Dashboard**: Track successful/failed downloads in popup
+- ** Dual UI Modes**: Switch between Modal UI and Inline UI from popup settings
+- ** Instant Apply**: Changing UI mode auto-reloads the active tab
+- ** Stop & Resume**: Pause downloads and resume later (1-hour window)
+- ** File Selection**: Checkboxes to select/deselect specific files
+- ** Skip Functionality**: Skip unwanted files with undo option
+- ** Comprehensive Retry**: Retry individual or all failed downloads
+- ** Modern UI**: Card-based design with real-time progress tracking
+- ** Statistics Dashboard**: Track successful/failed downloads in popup
 - **Auto-Injection**: Automatically detects FitGirl download pages
 
-✅ **Use this if you:**
+**Use this if you:**
 - Want **native browser integration** without Tampermonkey
 - Need **pause/resume** functionality for large downloads
 - Prefer **visual file selection** with checkboxes
 - Want **automatic retry** for failed downloads
 - Like **modern, polished UI** with real-time feedback
 
-➡️ [View Extension README](./browser-extension/README.md) | [Quick Install Guide](./browser-extension/INSTALL.md)
+[View Extension README](./browser-extension/README.md) | [Quick Install Guide](./browser-extension/INSTALL.md)
 
 ---
 
@@ -53,13 +53,13 @@ A **Tampermonkey/Greasemonkey userscript** for browser automation:
 - Tracks completed and failed downloads
 - Control panel with statistics
 
-✅ **Use this if you:**
+**Use this if you:**
 - Already have **Tampermonkey installed**
 - Prefer **userscripts** over extensions
 - Want **quick script edits** without reload
 - Need **cross-browser compatibility** (Firefox, Chrome, Edge, etc.)
 
-➡️ [View Userscript](./Tampermonkey-userscript/)
+[View Userscript](./Tampermonkey-userscript/)
 
 ---
 
@@ -72,14 +72,14 @@ A **browser automation tool** using **Puppeteer**:
 - Cleans up temp profiles automatically
 - Supports Edge, Chrome, Chromium browsers
 
-✅ **Use this if you:**
+**Use this if you:**
 - Prefer **visual confirmation** (browser window opens)
 - Want **maximum compatibility** with site logic
 - Need to use your **real browser profile** (cookies, settings)
 - Have a **paste file** with many links to process
 - Want to automate from command line/scripts
 
-➡️ [View Automation README](./browser-automation/README.md)
+[View Automation README](./browser-automation/README.md)
 
 ---
 
@@ -89,9 +89,10 @@ A **standalone terminal app** for headless operation:
 - Works with **Python standard library only** — zero third-party dependencies
 - Hands links to **your download manager** — GUI managers (auto-detected, launched with the URL), terminal managers (`aria2`/`wget`/`curl` run inline with progress), or **any binary** you point at
 - Interactive menu with paste-file scanning, dry-run mode, and downloader setup
+- **Real filenames** from paste fragments / server headers, and `--download-dir` for terminal downloads
 - Fast and headless operation
 
-✅ **Use this if you:**
+**Use this if you:**
 - Want **fast, silent, headless** operation
 - Don't need a browser window
 - Prefer **Python simplicity**
@@ -99,11 +100,11 @@ A **standalone terminal app** for headless operation:
 - Need to integrate into other Python workflows
 - Running on servers or headless systems
 
-➡️ [View Python README](./python-downloader/README.md)
+[View Python README](./python-downloader/README.md)
 
 ---
 
-## 📥 Quick Start
+## Quick Start
 
 ### Browser Extension (Recommended for Most Users)
 ```bash
@@ -115,7 +116,7 @@ cd fitgirl-game-downloader/browser-extension
 
 # Visit any FitGirl game page and start downloading!
 ```
-➡️ [Detailed Installation Guide](./browser-extension/INSTALL.md)
+[Detailed Installation Guide](./browser-extension/INSTALL.md)
 
 ### Tampermonkey Script
 1. Install [Tampermonkey](https://www.tampermonkey.net/) browser extension
@@ -139,26 +140,26 @@ No arguments (`python fitgirl_downloader.py`) opens an interactive menu; `--dry-
 
 ---
 
-## 🆚 Comparison
+## Comparison
 
 | Feature | Browser Extension | Tampermonkey | Browser Automation | Python Script |
 |---------|------------------|--------------|-------------------|---------------|
-| **Installation** | Load unpacked | Paste script | npm install | ✅ None (stdlib) |
+| **Installation** | Load unpacked | Paste script | npm install | None (stdlib) |
 | **UI** | Modern, native | Injected | Browser window | CLI only |
-| **Pause/Resume** | ✅ Yes | ❌ No | ❌ No | ❌ No |
-| **File Selection** | ✅ Checkboxes | ❌ All files | ❌ All files | ❌ All files |
-| **Skip Files** | ✅ With undo | ❌ No | ❌ No | ❌ No |
-| **Retry System** | ✅ Individual + Bulk | ⚠️ Basic | ⚠️ Basic | ⚠️ Basic |
-| **Statistics** | ✅ Popup dashboard | ⚠️ Control panel | ❌ Console only | ❌ Console only |
-| **Browser Required** | Chrome/Edge | Any | Chrome/Edge | ❌ No |
-| **Headless** | ❌ No | ❌ No | ⚠️ Optional | ✅ Yes |
-| **Real Browser Profile** | ✅ Yes | ✅ Yes | ✅ Yes | ❌ N/A |
-| **FDM Integration** | ⚠️ Default handler | ⚠️ Default handler | ⚠️ Default handler | ✅ Any download manager (CLI/GUI) |
-| **Cross-Browser** | ❌ Chrome/Edge only | ✅ All browsers | ❌ Chromium only | ✅ Universal |
+| **Pause/Resume** | Yes | No | No | No |
+| **File Selection** | Checkboxes | All files | All files | All files |
+| **Skip Files** | With undo | No | No | No |
+| **Retry System** | Individual + Bulk | Basic | Basic | Basic |
+| **Statistics** | Popup dashboard | Control panel | Console only | Console only |
+| **Browser Required** | Chrome/Edge | Any | Chrome/Edge | No |
+| **Headless** | No | No | Optional | Yes |
+| **Real Browser Profile** | Yes | Yes | Yes | N/A |
+| **FDM Integration** | Default handler | Default handler | Default handler | Any download manager (CLI/GUI) |
+| **Cross-Browser** | Chrome/Edge only | All browsers | Chromium only | Universal |
 
 ---
 
-## 🛑 Disclaimer
+## Disclaimer
 
 - These tools are for **automation convenience** only
 - Respect website terms of service and rate limits
@@ -167,13 +168,13 @@ No arguments (`python fitgirl_downloader.py`) opens an interactive menu; `--dry-
 
 ---
 
-## 📜 License
+## License
 
 MIT License — free to use, modify, and share.
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 Contributions welcome! Please:
 1. Fork the repository
@@ -184,7 +185,7 @@ Contributions welcome! Please:
 
 ---
 
-## 📞 Support
+## Support
 
 - **Issues**: [GitHub Issues](https://github.com/AyoubToueti/fitgirl-game-downloader/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/AyoubToueti/fitgirl-game-downloader/discussions)
@@ -192,10 +193,10 @@ Contributions welcome! Please:
 
 ---
 
-## ⭐ Star History
+## Star History
 
 If you find this project useful, please consider giving it a star!
 
 ---
 
-**Made with ❤️ for the FitGirl community**
+**Made with for the FitGirl community**
