@@ -27,6 +27,8 @@
       "js": [
         "shared/config.js",
         "shared/utils.js",
+        "shared/icons.js",
+        "shared/theme.js",
         "content/modal-ui.js",
         "content/inline-ui.js",
         "content/dom-helpers.js",
@@ -42,6 +44,7 @@
         "content/content-script.js"
       ],
       "css": [
+        "shared/tokens.css",
         "content/styles.css"
       ],
       "run_at": "document_idle"

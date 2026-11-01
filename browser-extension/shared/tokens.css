@@ -1,0 +1,218 @@
+/* shared/tokens.css
+   Design tokens and primitives shared by the popup and the in-page UI.
+   Loaded before popup.css and content/styles.css. */
+
+:root {
+  /* surfaces */
+  --surface: #ffffff;
+  --surface-2: #fafbfb;
+  --surface-3: #f4f6f7;
+  --page: #e9ebed;
+
+  /* lines */
+  --border: #d7dbe0;
+  --border-strong: #c3c9d0;
+
+  /* text */
+  --text: #1b1f24;
+  --dim: #5c646e;
+  --faint: #8a919b;
+
+  /* accent */
+  --accent: #2f6fb5;
+  --accent-hi: #285f9c;
+  --accent-soft: #e9f1fa;
+  --accent-line: #a8c2de;
+
+  /* status */
+  --ok: #2e7d4f;
+  --ok-soft: #e7f2eb;
+  --ok-line: #b9d8c6;
+  --err: #b0403a;
+  --err-soft: #fbeceb;
+  --err-line: #e0bdb9;
+  --warn: #8f6412;
+  --warn-soft: #fbf4e4;
+  --warn-line: #e3d2ab;
+
+  /* geometry */
+  --r: 4px;
+  --r-lg: 6px;
+  --row-h: 44px;
+
+  /* type */
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --mono: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, Consolas, monospace;
+  --fs-micro: 10px;
+  --fs-sm: 11px;
+  --fs-base: 12px;
+  --fs-md: 13px;
+  --fs-lg: 17px;
+
+  /* elevation, overlays only */
+  --shadow-overlay: 0 12px 32px rgba(16, 24, 40, 0.16);
+  --shadow-float: 0 2px 8px rgba(16, 24, 40, 0.12);
+}
+
+/* Explicit dark: the user picked it, so it overrides the OS preference. */
+:root[data-fg-theme="dark"] {
+  --surface: #16191d;
+  --surface-2: #1b1f24;
+  --surface-3: #22262c;
+  --page: #101215;
+
+  --border: #2b3037;
+  --border-strong: #3a4048;
+
+  --text: #e6e9ec;
+  --dim: #a4abb4;
+  --faint: #7b828b;
+
+  --accent: #5b9bd5;
+  --accent-hi: #74ade0;
+  --accent-soft: #1d2a38;
+  --accent-line: #37516b;
+
+  --ok: #5cb87f;
+  --ok-soft: #17281e;
+  --ok-line: #2f5140;
+  --err: #e07b73;
+  --err-soft: #2c1b1a;
+  --err-line: #573230;
+  --warn: #d5a63f;
+  --warn-soft: #2b2314;
+  --warn-line: #574525;
+
+  --shadow-overlay: 0 12px 32px rgba(0, 0, 0, 0.55);
+  --shadow-float: 0 2px 8px rgba(0, 0, 0, 0.45);
+}
+
+/* Fallback for when the theme script has not set the attribute yet (or
+   failed to load): follow the OS preference. An explicit light choice on a
+   dark OS is honoured by excluding [data-fg-theme="light"]. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-fg-theme]) {
+    --surface: #16191d;
+    --surface-2: #1b1f24;
+    --surface-3: #22262c;
+    --page: #101215;
+
+    --border: #2b3037;
+    --border-strong: #3a4048;
+
+    --text: #e6e9ec;
+    --dim: #a4abb4;
+    --faint: #7b828b;
+
+    --accent: #5b9bd5;
+    --accent-hi: #74ade0;
+    --accent-soft: #1d2a38;
+    --accent-line: #37516b;
+
+    --ok: #5cb87f;
+    --ok-soft: #17281e;
+    --ok-line: #2f5140;
+    --err: #e07b73;
+    --err-soft: #2c1b1a;
+    --err-line: #573230;
+    --warn: #d5a63f;
+    --warn-soft: #2b2314;
+    --warn-line: #574525;
+
+    --shadow-overlay: 0 12px 32px rgba(0, 0, 0, 0.55);
+    --shadow-float: 0 2px 8px rgba(0, 0, 0, 0.45);
+  }
+}
+
+/* Inline SVG icons from shared/icons.js */
+.fg-icon {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vertical-align: -2px;
+  pointer-events: none;
+}
+
+.fg-icon-sm {
+  width: 11px;
+  height: 11px;
+}
+
+/* Status tag, shared by popup and in-page list */
+.fg-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  border: 1px solid transparent;
+  font: 500 10px/1.5 var(--font);
+  white-space: nowrap;
+}
+
+.fg-tag::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+}
+
+.fg-tag-proc {
+  color: var(--warn);
+  background: var(--warn-soft);
+  border-color: var(--warn-line);
+}
+
+.fg-tag-ok {
+  color: var(--ok);
+  background: var(--ok-soft);
+  border-color: var(--ok-line);
+}
+
+.fg-tag-err {
+  color: var(--err);
+  background: var(--err-soft);
+  border-color: var(--err-line);
+}
+
+.fg-tag-skip {
+  color: var(--faint);
+  background: var(--surface-3);
+  border-color: var(--border);
+}
+
+.fg-tag-pending {
+  color: var(--dim);
+  background: transparent;
+  border-color: var(--border-strong);
+}
+
+@keyframes fg-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.fg-spinner {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  flex: none;
+  border: 1.5px solid var(--warn-line);
+  border-top-color: var(--warn);
+  border-radius: 50%;
+  animation: fg-spin 0.7s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fg-spinner {
+    animation: none;
+  }
+}
