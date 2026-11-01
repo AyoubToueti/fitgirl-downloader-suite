@@ -241,7 +241,7 @@ class FitGirlPageUIManager {
           <button class="fg-btn fg-btn-primary fg-start-btn">
             ${ico('download', 'fg-icon-sm')} Start download
           </button>
-          <button class="fg-btn fg-btn-danger fg-stop-btn" style="display: none;">
+          <button class="fg-btn fg-btn-danger fg-stop-btn fg-hidden">
             ${ico('stop', 'fg-icon-sm')} Stop
           </button>
           <label class="fg-btn fg-btn-sm fg-toggle-select-control" title="Toggle all selectable files">
@@ -249,7 +249,7 @@ class FitGirlPageUIManager {
             <span class="fg-toggle-select-text">Select all</span>
           </label>
           <button class="fg-btn fg-btn-sm fg-btn-secondary fg-calc-sizes-btn">${ico('scan', 'fg-icon-sm')} Calculate sizes</button>
-          <button class="fg-btn fg-btn-sm fg-btn-danger fg-cancel-sizes-btn" style="display: none;">${ico('close', 'fg-icon-sm')} Cancel scan</button>
+          <button class="fg-btn fg-btn-sm fg-btn-danger fg-cancel-sizes-btn fg-hidden">${ico('close', 'fg-icon-sm')} Cancel scan</button>
           <button class="fg-btn fg-btn-sm fg-reset-selection">${ico('reset', 'fg-icon-sm')} Reset</button>
           <button class="fg-btn fg-btn-sm fg-btn-danger fg-clear-page">${ico('trash', 'fg-icon-sm')} Clear</button>
         </div>
@@ -296,7 +296,9 @@ class FitGirlPageUIManager {
     }
 
     if (cancelSizesBtn) {
-      cancelSizesBtn.style.display = isRunning ? 'inline-flex' : 'none';
+      // Class + !important beats host-page CSS; the inline display value was
+      // not reliably hiding this button in Firefox.
+      cancelSizesBtn.classList.toggle('fg-hidden', !isRunning);
       cancelSizesBtn.disabled = false;
     }
   }

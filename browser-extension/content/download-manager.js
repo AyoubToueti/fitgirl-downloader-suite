@@ -141,12 +141,12 @@ class FitGirlDownloadManager {
     const { startBtn, stopBtn } = this.downloader.cachedElements || {};
 
     if (startBtn) {
-      startBtn.style.display = 'block';
+      startBtn.classList.remove('fg-hidden');
       startBtn.disabled = false;
     }
 
     if (stopBtn) {
-      stopBtn.style.display = 'none';
+      stopBtn.classList.add('fg-hidden');
       stopBtn.disabled = false;
       stopBtn.innerHTML = this.icon('stop', 'fg-icon-sm') + ' Stop';
     }
@@ -170,12 +170,12 @@ class FitGirlDownloadManager {
     this.downloader.currentIndex = resumeFromIndex !== null ? resumeFromIndex : 0;
 
     const { startBtn, stopBtn } = this.downloader.cachedElements;
-    startBtn.style.display = 'none';
+    startBtn.classList.add('fg-hidden');
     startBtn.disabled = true;
 
     // A previous run may have left Stop disabled ("Stopping..." state) if the
     // page was cleared or the run ended early. Always re-arm it per run.
-    stopBtn.style.display = 'block';
+    stopBtn.classList.remove('fg-hidden');
     stopBtn.disabled = false;
     stopBtn.innerHTML = this.icon('stop', 'fg-icon-sm') + ' Stop';
 
@@ -303,16 +303,27 @@ class FitGirlDownloadManager {
   }
 
   async extractRealDownloadUrl(pageUrl) {
-    const response = await browserAPI.runtime.sendMessage({
-      action: 'extractDownloadUrl',
-      url: pageUrl
-    });
+    let response;
 
-    if (response.success) {
+    try {
+      response = await browserAPI.runtime.sendMessage({
+        action: 'extractDownloadUrl',
+        url: pageUrl
+      });
+    } catch (error) {
+      // A reloaded extension orphans this page's content script; say so
+      // instead of letting the raw message bubble up as an extraction bug.
+      if (typeof isExtensionContextError === 'function' && isExtensionContextError(error)) {
+        throw new Error('The extension was reloaded. Reload this page, then try again.');
+      }
+      throw error;
+    }
+
+    if (response && response.success) {
       return response.downloadUrl;
     }
 
-    throw new Error(response.error || 'Extraction failed');
+    throw new Error((response && response.error) || 'Extraction failed');
   }
 
   async initiateDownload(downloadUrl, originalUrl) {
@@ -445,6 +456,14 @@ class FitGirlDownloadManager {
         try {
           downloadUrl = await this.extractRealDownloadUrl(url);
         } catch (extractError) {
+          // The "extension reloaded" case is not an extraction failure and no
+          // page-button fallback can recover from it, so surface it directly.
+          if (/extension was reloaded/i.test(extractError.message)) {
+            this.setFileStatus(url, CONFIG.STATUS.FAILED, extractError.message);
+            this.downloader.updateStatus(extractError.message);
+            this.downloader.showNotification('Extension reloaded', extractError.message);
+            return;
+          }
           console.warn('Background extraction failed during retry:', extractError.message);
           downloadUrl = null;
         }

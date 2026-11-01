@@ -161,12 +161,14 @@ body,
   min-width: 0;
   height: 27px;
   padding: 0 7px;
-  font-family: inherit;
+  font-family: var(--font);
   font-size: var(--fs-base);
   color: var(--text);
   background: var(--surface);
   border: 1px solid var(--border-strong);
   border-radius: var(--r);
+  -moz-appearance: none;
+  appearance: none;
 }
 
 .fg-file-search-input::placeholder {
@@ -188,6 +190,13 @@ body,
 .fg-control-group .fg-btn {
   width: 100%;
   justify-content: flex-start;
+}
+
+/* Hidden-state helper for controls that exist in the markup but should only
+   be visible while their action is available. The !important guarantees the
+   hidden state wins over host-page rules and any leftover inline display. */
+.fg-download-ui .fg-hidden {
+  display: none !important;
 }
 
 .fg-toggle-select-control {
@@ -355,7 +364,7 @@ body,
   gap: 6px;
   height: 27px;
   padding: 0 9px;
-  font-family: inherit;
+  font-family: var(--font);
   font-size: var(--fs-base);
   font-weight: 500;
   line-height: 1;
@@ -365,6 +374,10 @@ body,
   border-radius: var(--r);
   cursor: pointer;
   white-space: nowrap;
+  /* Firefox paints form controls with the native widget unless told otherwise,
+     which changes padding, text rendering and the border. */
+  -moz-appearance: none;
+  appearance: none;
 }
 
 .fg-btn:hover:not(:disabled) {

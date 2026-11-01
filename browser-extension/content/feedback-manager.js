@@ -48,7 +48,7 @@ class FitGirlFeedbackManager {
         url
       });
     } catch (error) {
-      console.error('Error logging success:', error);
+      this.reportMessageFailure(error, 'logging success');
     }
   }
 
@@ -61,7 +61,7 @@ class FitGirlFeedbackManager {
         error
       });
     } catch (err) {
-      console.error('Error logging failure:', err);
+      this.reportMessageFailure(err, 'logging failure');
     }
   }
 
@@ -73,8 +73,25 @@ class FitGirlFeedbackManager {
         message
       });
     } catch (error) {
-      console.error('Error showing notification:', error);
+      this.reportMessageFailure(error, 'showing notification');
     }
+  }
+
+  /**
+   * A reloaded extension leaves this page's content script orphaned, so every
+   * runtime message rejects with "Extension context invalidated". That is
+   * expected during development. Warn once and swallow the rest instead of
+   * logging a failure for each individual call.
+   */
+  reportMessageFailure(error, context) {
+    if (typeof isExtensionContextError === 'function' && isExtensionContextError(error)) {
+      if (!FitGirlFeedbackManager.contextWarned) {
+        FitGirlFeedbackManager.contextWarned = true;
+        console.warn('FitGirl Downloader: the extension was reloaded. Reload this page to restore it.');
+      }
+      return;
+    }
+    console.error('Error ' + context + ':', error);
   }
 }
 
