@@ -10,6 +10,13 @@ class FitGirlModalUI {
     this.modalKeydownHandler = null;
   }
 
+  icon(name, sizeClass) {
+    if (typeof FitGirlIcons !== 'undefined' && typeof FitGirlIcons.icon === 'function') {
+      return FitGirlIcons.icon(name, sizeClass);
+    }
+    return '';
+  }
+
   hasTriggerButton() {
     return !!(this.triggerButton && document.body.contains(this.triggerButton));
   }
@@ -29,7 +36,7 @@ class FitGirlModalUI {
       button = document.createElement('button');
       button.className = 'fg-ui-trigger-btn';
       button.type = 'button';
-      button.textContent = '🎮 Open Downloader';
+      button.innerHTML = this.icon('download', 'fg-icon-sm') + ' Open downloader';
       button.addEventListener('click', () => this.open());
     }
 

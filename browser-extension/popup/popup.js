@@ -4,6 +4,14 @@
 // Cross-browser API compatibility
 const browserAPI = typeof browser !== 'undefined' ? browser : chrome;
 
+// Inline SVG icons from shared/icons.js
+function popupIcon(name, sizeClass) {
+  if (typeof FitGirlIcons !== 'undefined' && typeof FitGirlIcons.icon === 'function') {
+    return FitGirlIcons.icon(name, sizeClass);
+  }
+  return '';
+}
+
 // Performance utilities
 const perfUtils = {
   // Debounce function to limit rapid calls
@@ -72,8 +80,13 @@ function cacheElements() {
     dlMethodNative: document.getElementById('dl-method-native'),
     dlMethodApi: document.getElementById('dl-method-api'),
     dlMethodStatus: document.getElementById('dl-method-status'),
-    dlMethodInputs: Array.from(document.querySelectorAll('input[name="dl-method"]'))
+    dlMethodInputs: Array.from(document.querySelectorAll('input[name="dl-method"]')),
+    themeToggle: document.getElementById('theme-toggle')
   };
+
+  if (typeof FitGirlTheme !== 'undefined' && typeof FitGirlTheme.bindToggle === 'function') {
+    FitGirlTheme.bindToggle(elements.themeToggle);
+  }
 }
 
 // Storage keys (from config)
@@ -82,19 +95,19 @@ const STORAGE_KEYS = {
   FAILED_URLS: 'failed_urls',
   PAUSE_STATE: 'pause_state',
   DOWNLOAD_STATS: 'download_stats',
-  USER_PREFERENCES: (typeof CONFIG !== 'undefined' && CONFIG.STORAGE_KEYS && CONFIG.STORAGE_KEYS.USER_PREFERENCES) || 'user_preferences'
+  USER_PREFERENCES: (typeof CONFIG !== 'undefined' && CONFIG.STORAGE_KEYS?.USER_PREFERENCES) || 'user_preferences'
 };
 
 const UI_MODES = {
-  MODAL: (typeof CONFIG !== 'undefined' && CONFIG.UI_MODES && CONFIG.UI_MODES.MODAL) || 'modal',
-  INLINE: (typeof CONFIG !== 'undefined' && CONFIG.UI_MODES && CONFIG.UI_MODES.INLINE) || 'inline'
+  MODAL: (typeof CONFIG !== 'undefined' && CONFIG.UI_MODES?.MODAL) || 'modal',
+  INLINE: (typeof CONFIG !== 'undefined' && CONFIG.UI_MODES?.INLINE) || 'inline'
 };
 
 const DEFAULT_UI_MODE = (typeof CONFIG !== 'undefined' && CONFIG.DEFAULT_UI_MODE) || UI_MODES.MODAL;
 
 const DOWNLOAD_METHODS = {
-  NATIVE: (typeof CONFIG !== 'undefined' && CONFIG.DOWNLOAD_METHODS && CONFIG.DOWNLOAD_METHODS.NATIVE) || 'native',
-  API: (typeof CONFIG !== 'undefined' && CONFIG.DOWNLOAD_METHODS && CONFIG.DOWNLOAD_METHODS.API) || 'api'
+  NATIVE: (typeof CONFIG !== 'undefined' && CONFIG.DOWNLOAD_METHODS?.NATIVE) || 'native',
+  API: (typeof CONFIG !== 'undefined' && CONFIG.DOWNLOAD_METHODS?.API) || 'api'
 };
 
 const DEFAULT_DOWNLOAD_METHOD =
@@ -186,7 +199,7 @@ async function checkPauseState() {
     browserAPI.storage.local.get([STORAGE_KEYS.PAUSE_STATE], (result) => {
       const pauseState = result[STORAGE_KEYS.PAUSE_STATE];
       
-      if (pauseState && pauseState.isPaused) {
+      if (pauseState?.isPaused) {
         // Check if expired
         const isExpired = isPauseExpired(pauseState.pausedAt);
         
@@ -212,7 +225,7 @@ function showPauseState(pauseState) {
   elements.pauseState.style.display = 'flex';
   
   const pageUrl = new URL(pauseState.pageUrl);
-  const pageName = pageUrl.pathname.split('/').filter(s => s).pop() || 'Unknown';
+  const pageName = pageUrl.pathname.split('/').findLast(Boolean) || 'Unknown';
   const timeAgo = formatTimestamp(pauseState.pausedAt);
   
   elements.pauseDetails.textContent = `Paused ${timeAgo} on ${pageName}`;
@@ -250,7 +263,7 @@ function updateFailedList(failedUrls) {
       <div class="failed-item-url">${escapeHtml(url)}</div>
       <div class="failed-item-error">${escapeHtml(error)}</div>
       <button class="btn btn-xs btn-retry-single" data-url="${url}">
-        <span class="btn-icon">🔄</span>
+        ${popupIcon('retry', 'fg-icon-sm')}
         <span>Retry</span>
       </button>
     `;
@@ -345,7 +358,7 @@ async function getStorageViaBackground(keys) {
       keys
     });
 
-    if (response && response.success) {
+    if (response?.success) {
       return response.data || {};
     }
   } catch (error) {
@@ -361,8 +374,8 @@ async function setStorageViaBackground(data) {
     data
   });
 
-  if (!response || !response.success) {
-    throw new Error((response && response.error) || 'Storage save failed');
+  if (!response?.success) {
+    throw new Error((response?.error) || 'Storage save failed');
   }
 }
 
@@ -430,26 +443,26 @@ async function saveDownloadMethodPreference(method) {
 
 async function reloadActiveTabAfterModeSwitch() {
   return new Promise((resolve) => {
-    if (!browserAPI.tabs || !browserAPI.tabs.query || !browserAPI.tabs.reload) {
+    if (!browserAPI.tabs?.query || !browserAPI.tabs.reload) {
       resolve(false);
       return;
     }
 
     browserAPI.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (browserAPI.runtime && browserAPI.runtime.lastError) {
+      if (browserAPI.runtime?.lastError) {
         console.error('Error querying active tab:', browserAPI.runtime.lastError);
         resolve(false);
         return;
       }
 
-      const activeTab = tabs && tabs[0];
-      if (!activeTab || typeof activeTab.id === 'undefined') {
+      const activeTab = tabs?.[0];
+      if (activeTab?.id === undefined) {
         resolve(false);
         return;
       }
 
       browserAPI.tabs.reload(activeTab.id, {}, () => {
-        if (browserAPI.runtime && browserAPI.runtime.lastError) {
+        if (browserAPI.runtime?.lastError) {
           console.error('Error reloading active tab:', browserAPI.runtime.lastError);
           resolve(false);
           return;

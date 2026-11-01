@@ -9,6 +9,13 @@ class FitGirlOriginalLinksModal {
     this.modalKeydownHandler = null;
   }
 
+  icon(name, sizeClass) {
+    if (typeof FitGirlIcons !== 'undefined' && typeof FitGirlIcons.icon === 'function') {
+      return FitGirlIcons.icon(name, sizeClass);
+    }
+    return '';
+  }
+
   toggleOriginalLinks() {
     this.originalLinksHidden = !this.originalLinksHidden;
 
@@ -22,9 +29,9 @@ class FitGirlOriginalLinksModal {
   updateOriginalLinksButtonText() {
     const toggleBtn = this.downloader.cachedElements.toggleLinksBtn;
     if (!toggleBtn) return;
-    toggleBtn.textContent = this.originalLinksHidden ?
-      '👁️ Show Original Links' :
-      '🙈 Hide Original Links';
+    toggleBtn.innerHTML = this.originalLinksHidden
+      ? this.icon('link', 'fg-icon-sm') + ' Show original links'
+      : this.icon('close', 'fg-icon-sm') + ' Hide original links';
   }
 
   hideOriginalLinks() {
@@ -92,8 +99,8 @@ class FitGirlOriginalLinksModal {
     const header = document.createElement('div');
     header.className = 'fg-links-modal-header';
     header.innerHTML = `
-      <h4>Original Download Links</h4>
-      <button class="fg-links-modal-close" type="button" aria-label="Close">x</button>
+      <h4>${this.icon('link', 'fg-icon-sm')} Original download links</h4>
+      <button class="fg-links-modal-close" type="button" aria-label="Close">${this.icon('close', 'fg-icon-sm')}</button>
     `;
 
     const body = document.createElement('div');

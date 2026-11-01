@@ -8,6 +8,24 @@ class FitGirlPageUIManager {
     this.downloader = downloader;
   }
 
+  /**
+   * Inline SVG icon markup. Falls back to an empty string when the shared
+   * sprite script has not been injected.
+   */
+  icon(name, sizeClass) {
+    if (typeof FitGirlIcons !== 'undefined' && typeof FitGirlIcons.icon === 'function') {
+      return FitGirlIcons.icon(name, sizeClass);
+    }
+    return '';
+  }
+
+  bindThemeToggle(scope) {
+    const button = scope?.querySelector('.fg-theme-toggle');
+    if (button && typeof FitGirlTheme !== 'undefined' && typeof FitGirlTheme.bindToggle === 'function') {
+      FitGirlTheme.bindToggle(button);
+    }
+  }
+
   normalizeUIMode(mode) {
     if (mode === CONFIG.UI_MODES.INLINE) {
       return CONFIG.UI_MODES.INLINE;
@@ -202,12 +220,16 @@ class FitGirlPageUIManager {
     const uiContainer = document.createElement('div');
     uiContainer.className = 'fg-download-ui';
     const isModalMode = this.isModalMode();
+    const ico = this.icon.bind(this);
     uiContainer.innerHTML = `
       <div class="fg-header">
-        <h3 class="fg-title">\u{1F3AE} FitGirl Downloader</h3>
-        <button class="fg-btn fg-btn-secondary fg-toggle-links">
-          ${isModalMode ? '\u2716 Close Downloader' : '\u{1F441}\uFE0F Show Original Links'}
-        </button>
+        <h3 class="fg-title">FitGirl Downloader</h3>
+        <div class="fg-header-actions">
+          <button class="fg-theme-toggle" type="button" aria-label="Toggle theme" title="Toggle theme"></button>
+          <button class="fg-btn fg-btn-secondary fg-toggle-links">
+            ${isModalMode ? ico('close', 'fg-icon-sm') + ' Close downloader' : ico('link', 'fg-icon-sm') + ' Show original links'}
+          </button>
+        </div>
       </div>
 
       <div class="fg-controls">
@@ -217,22 +239,19 @@ class FitGirlPageUIManager {
 
         <div class="fg-control-group">
           <button class="fg-btn fg-btn-primary fg-start-btn">
-            \u{1F680} Start Download
+            ${ico('download', 'fg-icon-sm')} Start download
           </button>
           <button class="fg-btn fg-btn-danger fg-stop-btn" style="display: none;">
-            \u23F9\uFE0F Stop
+            ${ico('stop', 'fg-icon-sm')} Stop
           </button>
           <label class="fg-btn fg-btn-sm fg-toggle-select-control" title="Toggle all selectable files">
             <input type="checkbox" class="fg-toggle-select-checkbox" aria-label="Toggle all files">
-            <span class="fg-toggle-select-text">Select All</span>
+            <span class="fg-toggle-select-text">Select all</span>
           </label>
-          <label class="fg-btn fg-btn-sm fg-toggle-select-control fg-size-unknown-toggle" title="Only request links with unknown size">
-            <input type="checkbox" class="fg-size-unknown-checkbox" aria-label="Recalculate only unknown sizes" checked>
-            <span class="fg-toggle-select-text">Unknown only</span>
-          </label>
-          <button class="fg-btn fg-btn-sm fg-btn-secondary fg-calc-sizes-btn">\u{1F4CF} Calculate Sizes</button>
-          <button class="fg-btn fg-btn-sm fg-btn-danger fg-cancel-sizes-btn" style="display: none;">\u2716 Cancel Size Scan</button>
-          <button class="fg-btn fg-btn-sm fg-reset-selection">Reset</button>
+          <button class="fg-btn fg-btn-sm fg-btn-secondary fg-calc-sizes-btn">${ico('scan', 'fg-icon-sm')} Calculate sizes</button>
+          <button class="fg-btn fg-btn-sm fg-btn-danger fg-cancel-sizes-btn" style="display: none;">${ico('close', 'fg-icon-sm')} Cancel scan</button>
+          <button class="fg-btn fg-btn-sm fg-reset-selection">${ico('reset', 'fg-icon-sm')} Reset</button>
+          <button class="fg-btn fg-btn-sm fg-btn-danger fg-clear-page">${ico('trash', 'fg-icon-sm')} Clear</button>
         </div>
 
         <div class="fg-counter">
@@ -257,6 +276,8 @@ class FitGirlPageUIManager {
       container.insertBefore(uiContainer, container.firstChild);
     }
 
+    this.bindThemeToggle(uiContainer);
+
     this.downloader.cacheElements();
     this.downloader.refreshCheckboxCache();
 
@@ -266,19 +287,17 @@ class FitGirlPageUIManager {
   }
 
   setSizeCalculationState(isRunning) {
-    const { calcSizesBtn, cancelSizesBtn, sizeUnknownOnlyCheckbox } = this.downloader.cachedElements;
+    const { calcSizesBtn, cancelSizesBtn } = this.downloader.cachedElements;
     if (calcSizesBtn) {
       calcSizesBtn.disabled = isRunning;
-      calcSizesBtn.textContent = isRunning ? '\u{1F4CF} Calculating...' : '\u{1F4CF} Calculate Sizes';
+      calcSizesBtn.innerHTML = isRunning
+        ? this.icon('scan', 'fg-icon-sm') + ' Calculating...'
+        : this.icon('scan', 'fg-icon-sm') + ' Calculate sizes';
     }
 
     if (cancelSizesBtn) {
       cancelSizesBtn.style.display = isRunning ? 'inline-flex' : 'none';
       cancelSizesBtn.disabled = false;
-    }
-
-    if (sizeUnknownOnlyCheckbox) {
-      sizeUnknownOnlyCheckbox.disabled = isRunning;
     }
   }
 
@@ -335,7 +354,7 @@ class FitGirlPageUIManager {
   addDirectDownloadButton() {
     const button = document.createElement('button');
     button.className = 'fg-float-btn';
-    button.innerHTML = '\u{1F680} Send to Downloader';
+    button.innerHTML = this.icon('download', 'fg-icon-sm') + ' Send to downloader';
     button.addEventListener('click', () => {
       this.downloader.initiateDownload(window.location.href, window.location.href);
     });
@@ -345,7 +364,7 @@ class FitGirlPageUIManager {
   addExtractButton() {
     const button = document.createElement('button');
     button.className = 'fg-float-btn';
-    button.innerHTML = '\u{1F50D} Extract & Download';
+    button.innerHTML = this.icon('external', 'fg-icon-sm') + ' Extract &amp; download';
     button.addEventListener('click', () => {
       this.triggerPageDownload();
     });
@@ -380,13 +399,13 @@ class FitGirlPageUIManager {
       if (this.triggerPageButtonFallback()) {
         return;
       }
-      this.downloader.showNotification('\u274C Error', error.message);
+      this.downloader.showNotification('Error', error.message);
     }
   }
 
   triggerPageButtonFallback() {
     if (this.downloader.downloadManager?.tryTriggerPageDownload()) {
-      this.downloader.updateStatus('\u{1F4E5} Download triggered via page button');
+      this.downloader.updateStatus('Download triggered via page button');
       return true;
     }
     return false;
