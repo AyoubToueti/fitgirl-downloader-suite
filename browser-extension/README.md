@@ -1,304 +1,364 @@
-# FitGirl FDM Downloader - Browser Extension
+# FitGirl Downloader - Browser Extension
 
-A powerful browser extension for automating downloads from FitGirl Repacks with advanced features like pause/resume, file selection, skip functionality, and comprehensive retry system.
+A browser extension that automates downloads from FitGirl Repacks pages. It lists
+every fuckingfast.co link on the page, lets you pick which files you want, hands
+the direct URLs to your download manager, and remembers your selections per page.
 
-## 🌟 Features
+The interface is a flat, text-first "desktop utility" design: hairline borders,
+one accent colour, inline SVG icons, and a light/dark theme toggle. No emoji, no
+gradients, no decorative shadows outside overlays.
 
-### ⏹️ Stop & Pause
+## Features
 
-- **Stop Button**: Appears when download starts (fixed position, top-right)
-- **Smart Pause**: Stops after current file finishes to prevent corruption
-- **Auto-Resume**: Resume downloads from where you left off (with 1-hour expiration)
-- **Visual Feedback**: Shows "Stopping..." status and disables button during pause
+### Download control
 
-### 📋 File Selection System
+- **Start / Stop**: start a bulk run, or stop cleanly after the current file
+  finishes so the file in flight is never corrupted.
+- **Pause and resume**: stop mid-run and the extension records the file index,
+  the page hash and the file list. Return to the same page within an hour and a
+  resume banner offers to continue from that index.
+- **Two delivery modes**: hand the URL to the page navigation flow so an
+  external download manager (FDM and similar) can intercept it, or use the
+  browser downloads API directly.
 
-- **Individual Checkboxes**: Select/deselect specific files to download
-- **Bulk Actions**: Select All / Deselect All / Reset Selections buttons
-- **Live Counter**: Shows "X of Y files selected (Z skipped)"
-- **Page-Specific Persistence**: Selections saved per page using URL hash
-- **Smart Defaults**: Respects skipped files (disabled checkboxes)
+### File selection
 
-### ⏭️ Skip Functionality
+- Per-file checkboxes, with Select all / Deselect all as a single toggle.
+- Live counter: "X of Y files selected (Z skipped)".
+- Page-scoped persistence keyed by URL hash, so each game page keeps its own
+  selection.
+- Search box that filters the visible rows by filename or URL.
 
-- **Skip Individual Files**: Skip button on each file item
-- **Undo Skip**: Reverse skip decision with one click
-- **Persistent State**: Skipped files persist across page reloads
-- **Visual Feedback**: Gray styling with strike-through text
+### Skip and retry
 
-### 🔄 Comprehensive Retry System
+- **Skip** a file to remove it from the run; skipped rows are struck through and
+  greyed, with an **Undo** button to restore them.
+- **Retry** is available on failed rows *and* on rows that already succeeded, so
+  a file can be downloaded again without reloading the page.
+- Bulk retry of every failed download is available from the popup.
 
-- **Retry All Failed**: Bulk retry button in control panel
-- **Individual Retry**: Retry button on each failed file item
-- **Dual Feedback**: File item badge + control panel status
-- **Auto-Cleanup**: Removes from failed list on successful retry
-- **Persistent Failures**: Failed files persist across page reloads
+### Size calculation
 
-### 🎨 Modern UI
+- **Calculate sizes** probes every file whose size is not already known.
+  Files already resolved are skipped; entries previously marked unknown are
+  re-probed, so clicking again recovers from a transient failure.
+- Per-file size cell, a scan progress line, and a package summary that groups
+  files by repack part and totals the known sizes.
 
-- **Card-Based Layout**: Clean, modern file list design
-- **Color-Coded Badges**:
-  - 🟡 Yellow: Processing
-  - 🟢 Green: Success
-  - 🔴 Red: Failed
-  - 🟠 Orange: Retrying
-  - ⚪ Gray: Skipped
-- **Smooth Animations**: 0.3s transitions on all interactions
-- **Progress Bar**: Real-time progress with percentage
-- **Hover Effects**: Interactive cards with elevation on hover
+### Status indicators
 
-### 🧭 Rendering Modes (Modal / Inline)
+Every row shows a status tag, so no row is ever blank:
 
-- **Two UI Modes**:
-   - **Modal UI** (recommended): Opens the downloader in a centered overlay
-   - **Inline UI** (classic): Renders downloader directly on the page
-- **Popup Mode Switcher**: Change mode from extension popup settings
-- **Auto Page Reload**: When mode changes, the active tab reloads automatically so the new mode applies immediately
-- **Inline Original Links Overlay**:
-   - Original page links remain hidden under extension UI
-   - "Show Original Links" opens a centered, scrollable overlay list
-   - Overlay closes via close button, backdrop click, or Escape key
-   - Toggle button is hidden while overlay is open and shown again after close
+- **Pending** - not started yet (the default state).
+- **Processing** - request in flight, with a spinner.
+- **Success** / **Completed** - finished; a Retry button stays visible.
+- **Failed** - errored; hover the tag for the error message.
+- **Retrying** - a retry is running.
+- **Skipped** - excluded from the run.
 
-### 📊 Enhanced Popup
+### Clear page state
 
-- **Statistics Dashboard**: Total, successful, and failed download counts
-- **Progress Tracking**: Live progress bar with current/total files
-- **Pause State Indicator**: Shows paused downloads with timestamp
-- **Retry All Failed**: One-click retry of all failed downloads
-- **View Failed List**: Detailed list of failed downloads with error messages
-- **Clear Logs**: Reset all statistics and history
+The **Clear** button in the control column wipes everything the extension
+remembers about the current page: selections, skips, cached sizes and any pause
+state. The list is then rebuilt from the page. It asks for confirmation first.
 
-## 📦 Installation
+### Themes
 
-### Chrome/Edge (Manifest V3)
+Light and dark themes, with the choice stored in extension storage and shared
+between the popup and the in-page panel. See [Themes](#themes).
 
-1. **Download the Extension**
+### Rendering modes
 
-   ```bash
-   cd fitgirl-downloader-suite/browser-extension
-   ```
-2. **Add Icons** (Important!)
+- **Modal UI** (default): a trigger button next to the page's download heading
+  opens the panel in a centred overlay. Closes on Escape, backdrop click, or the
+  close button.
+- **Inline UI**: the panel is rendered directly above the download section.
+- Switching mode in the popup reloads the active tab so the change applies at
+  once.
 
-   - Add `icon16.png`, `icon48.png`, and `icon128.png` to the `icons/` folder
-   - See `icons/README.md` for resources
-3. **Load in Browser**
-
-   - Open Chrome/Edge and navigate to `chrome://extensions/`
-   - Enable "Developer mode" (toggle in top-right)
-   - Click "Load unpacked"
-   - Select the `browser-extension` folder
-4. **Verify Installation**
+### Original links overlay
 
-   - Extension icon should appear in toolbar
-   - Visit a FitGirl Repacks download page to test
-
-### Firefox (Manifest V2 - Coming Soon)
-
-Firefox support requires a Manifest V2 version. A separate build will be provided.
-
-## 🚀 Usage
-
-### On FitGirl Repacks Pages
-
-1. **Navigate** to any FitGirl Repacks game page with download links
-2. **Wait** for the extension to detect download links (auto-initializes)
-3. **See UI** - A purple download interface appears at the top of the page
-
-### Basic Download Flow
-
-1. **Select Files**: Check/uncheck boxes for files you want to download
-2. **Optional**: Skip files you don't want (gray out permanently)
-3. **Click**: "🚀 Start Download" button
-4. **Monitor**: Progress bar shows real-time status
-5. **Stop Anytime**: Click "⏹️ Stop" to pause (resumes on next visit)
-
-### Advanced Features
-
-#### Pause & Resume
-
-```
-1. Click "⏹️ Stop" during download
-2. Extension saves current progress
-3. Return to same page within 1 hour
-4. Banner appears: "▶️ Resume Download"
-5. Click to continue from where you left off
-```
-
-#### Skip Files
-
-```
-1. Click "⏭️ Skip" on any file
-2. File turns gray and checkbox disables
-3. Click "↩️ Undo" to reverse skip
-4. Skipped files persist across sessions
-```
-
-#### Retry Failed Downloads
-
-```
-Option 1: Individual Retry
-- Click "🔄 Retry" button on failed file
-
-Option 2: Bulk Retry
-- Open extension popup
-- Click "🔄 Retry All Failed"
-- Navigate to download page
-```
-
-### Popup Controls
-
-Click the extension icon in toolbar to:
+In modal mode the page's own link list is hidden behind the panel. **Show
+original links** opens a scrollable overlay listing each fuckingfast.co URL;
+close it with the close button, a backdrop click, or Escape.
 
-- **View Statistics**: Total, successful, failed downloads
-- **Check Pause State**: See if any download is paused
-- **Retry Failed**: Bulk retry all failed downloads
-- **View Failed List**: See detailed error messages
-- **Clear Logs**: Reset all statistics (requires confirmation)
-- **Rendering Mode**: Switch between Modal and Inline modes from settings (tab auto-reloads)
+### Popup
 
-## 🔧 Configuration
+- Totals for all, successful and failed downloads.
+- Live progress bar when a run is active.
+- Pause indicator with a Resume button that jumps back to the paused page.
+- Retry all failed, view the failed list with error messages, and clear logs.
+- Rendering mode and download delivery preferences.
+- Theme toggle.
 
-### Timing Settings (in `shared/config.js`)
-
-```javascript
-CONFIG = {
-  WAIT_BETWEEN: 2000,                    // ms between downloads
-  MAX_RETRIES_EXTRACTION: 3,             // URL extraction retries
-  MAX_RETRIES_FDM: 2,                    // Download retries
-  RETRY_BASE_DELAY_EXTRACTION: 2000,     // Base retry delay (ms)
-  RETRY_BASE_DELAY_FDM: 1000,            // FDM retry delay (ms)
-  CONSECUTIVE_FAILURES_THRESHOLD: 3,     // Pause after N failures
-  PAUSE_EXPIRATION_TIME: 3600000         // 1 hour (ms)
-}
-```
+### fuckingfast.co pages
 
-### Customizing Colors (in `content/styles.css` or `popup/popup.css`)
+On a `/dl/` page a floating **Send to downloader** button downloads the file
+directly. On a link page, **Extract & download** resolves the real URL first.
 
-```css
-:root {
-  --fg-primary: #667eea;        /* Main purple */
-  --fg-primary-dark: #764ba2;   /* Dark purple */
-  --fg-success: #10b981;        /* Green */
-  --fg-danger: #ef4444;         /* Red */
-  --fg-warning: #f59e0b;        /* Orange */
-  --fg-info: #3b82f6;           /* Blue */
-  --fg-muted: #6b7280;          /* Gray */
-}
-```
+## Installation
 
-## 🗂️ File Structure
+### Chrome / Edge (Manifest V3)
 
-```
-browser-extension/
-├── manifest.json              # Extension metadata (MV3)
-├── background/
-│   └── background.js         # Service worker (network, downloads, storage)
-├── content/
-│   ├── content-script.js     # Page interaction & UI injection
-│   └── styles.css            # Modern UI styling
-├── popup/
-│   ├── popup.html            # Extension popup UI
-│   ├── popup.js              # Popup logic & stats
-│   └── popup.css             # Popup styling
-├── shared/
-│   ├── config.js             # Configuration constants
-│   └── utils.js              # Shared utility functions
-└── icons/
-    ├── icon16.png            # 16x16 icon (required)
-    ├── icon48.png            # 48x48 icon (required)
-    └── icon128.png           # 128x128 icon (required)
-```
+1. Open `chrome://extensions/` and enable **Developer mode**.
 
-## 🔑 Permissions Explained
+2. Click **Load unpacked** and select the `browser-extension` folder.
 
-- **storage**: Save download history, selections, and pause state
-- **downloads**: Trigger file downloads via browser
-- **notifications**: Show download status notifications
-- **tabs**: Open new tabs for retry functionality
-- **host_permissions**: Access FitGirl and fuckingfast.co pages
+3. Confirm the extension icon appears in the toolbar.
 
-## 🐛 Troubleshooting
+4. Open a FitGirl Repacks page with download links to verify.
 
-### Extension Not Detecting Links
+There is no build step: the extension runs directly from source.
 
-- **Cause**: Page loaded before extension initialized
-- **Solution**: Refresh the page (F5) or wait a few seconds
+Icons live in `icons/` as `icon16.png`, `icon48.png` and `icon128.png`. See
+`icons/README.md` for sources.
 
-### Downloads Not Starting
+### Firefox
 
-- **Cause**: Browser download permissions not granted
-- **Solution**: Check browser settings → Downloads → Allow automatic downloads
+Firefox needs a Manifest V2 build and is not supported yet.
 
-### Pause State Not Restoring
+## Usage
 
-- **Cause**: Pause expired (>1 hour) or different page
-- **Solution**: Pause state is page-specific and expires after 1 hour
+### On a FitGirl Repacks page
 
-### Failed Downloads Not Retrying
+1. Open a game page that lists fuckingfast.co links.
 
-- **Cause**: Content script needs to be on the download page
-- **Solution**: Navigate to the original FitGirl page, then retry
+2. Wait for the extension to detect the links (it retries for a few seconds).
 
-### Stop Button Not Working
+3. In modal mode, click **Open downloader** next to the download heading. In
+   inline mode the panel is already on the page.
 
-- **Cause**: Current file must finish first (prevents corruption)
-- **Solution**: Wait for current file to complete, then it will stop
+### A typical run
 
-## 🛠️ Development
+1. Deselect or **Skip** anything you do not want.
 
-### Prerequisites
+2. Optionally click **Calculate sizes** to fill in the size column.
 
-- Chrome/Edge browser (version 88+)
-- Text editor (VS Code recommended)
-- Basic JavaScript knowledge
+3. Click **Start download**.
 
-### Making Changes
+4. Watch the status column and the footer status line.
 
-1. **Edit Files**: Modify `.js` or `.css` files as needed
-2. **Reload Extension**:
-   - Go to `chrome://extensions/`
-   - Click reload icon on extension card
-3. **Test Changes**: Visit a FitGirl page and verify
+5. Click **Stop** at any time; it pauses after the current file.
 
-### Debug Console
+### Resuming
 
-- **Content Script**: Right-click page → Inspect → Console tab
-- **Background Script**: `chrome://extensions/` → Extension details → Inspect service worker
-- **Popup**: Right-click extension icon → Inspect popup
+1. Click **Stop** during a run.
 
-### Common Dev Tasks
+2. Return to the same page within one hour.
 
-```javascript
-// Log from content script
-console.log('FitGirl Downloader:', message);
+3. A banner appears: **Download paused - resume from file N of M**. Click
+   **Resume**, or **Discard** to drop the saved session.
 
-// Test storage
-chrome.storage.local.get(null, (data) => console.log(data));
+### Retrying
 
-// Clear all storage
-chrome.storage.local.clear();
-```
+- Single file: click **Retry** on that row. Available on failed and on already
+  successful rows.
+- Everything that failed: open the popup and click **Retry all failed**.
 
-## 📝 Known Limitations
+### Clearing a page
 
-1. **Cross-Origin**: Can only access specified domains in manifest
-2. **Service Worker**: May go inactive after 30 seconds (auto-restarts on message)
-3. **Pause Expiration**: Paused downloads expire after 1 hour
-4. **Manifest V3**: Chrome/Edge only (Firefox requires separate MV2 build)
+Click **Clear** in the control column. This removes the saved selections, skips,
+size results and pause state for the current page only. Download history and the
+failed log are stored globally and are cleared from the popup instead.
 
-## 🙏 Credits
+## Themes
 
-- FitGirl Repacks for game distribution
-- Chrome Extension API documentation
+The theme toggle appears in the popup header and in the in-page panel header. It
+shows the icon for the theme you would switch to (moon while light, sun while
+dark).
 
-## 🔗 Related Projects
+- The choice is stored as `theme_mode` in extension storage and applies to both
+  the popup and any open page panel immediately.
+- On first use the theme follows the operating system setting and keeps tracking
+  it until you toggle.
+- The theme is applied with a `data-fg-theme` attribute on the document element,
+  which is deliberately different from the common `data-theme` so host pages are
+  not affected.
 
-- **Main Repository**: [fitgirl-downloader-suite](../)
-- **Browser Automation**: [../browser-automation/](../browser-automation/)
-- **Tampermonkey Script**: [../tampermonkey-script/](../tampermonkey-script/)
-- **Python Downloader**: [../python-downloader/](../python-downloader/)
+## Configuration
+
+Timing and storage constants live in `shared/config.js`:
+
+    CONFIG = {
+      WAIT_BETWEEN: 3000,                  // ms between downloads
+      MAX_RETRIES_EXTRACTION: 3,           // URL extraction retries
+      MAX_RETRIES_FDM: 2,                  // download retries
+      RETRY_BASE_DELAY_EXTRACTION: 2000,   // base retry delay (ms)
+      RETRY_BASE_DELAY_FDM: 1000,          // download retry delay (ms)
+      CONSECUTIVE_FAILURES_THRESHOLD: 3,   // pause after N failures in a row
+      PAUSE_EXPIRATION_TIME: 3600000,      // 1 hour (ms)
+      SIZE_CALC_TIMEOUT_MS: 12000,
+      SIZE_CACHE_TTL_MS: 21600000          // 6 hours
+    }
+
+### Theming tokens
+
+All colours, radii and type sizes are CSS custom properties in
+`shared/tokens.css`, loaded before both `popup.css` and `content/styles.css`:
+
+    :root {
+      --surface: #ffffff;      /* card and panel background */
+      --surface-2: #fafbfb;    /* headers and footers */
+      --surface-3: #f4f6f7;    /* hover and table header */
+      --border: #d7dbe0;       /* hairlines */
+      --border-strong: #c3c9d0;
+      --text: #1b1f24;
+      --dim: #5c646e;
+      --faint: #8a919b;
+      --accent: #2f6fb5;       /* the single accent colour */
+      --accent-hi: #285f9c;
+      --accent-soft: #e9f1fa;
+      --ok: #2e7d4f;
+      --err: #b0403a;
+      --warn: #8f6412;
+      --r: 4px;
+      --r-lg: 6px;
+    }
+
+The dark palette is declared twice: once under
+`:root[data-fg-theme="dark"]` for an explicit choice, and once under
+`@media (prefers-color-scheme: dark)` scoped to `:root:not([data-fg-theme])` as
+a fallback before the theme script runs.
+
+## File structure
+
+    browser-extension/
+      manifest.json                 MV3 manifest, registers scripts and CSS
+      background/
+        background.js               service worker: extraction, downloads, storage
+      content/
+        content-script.js           orchestrator, DOM cache, event wiring
+        page-ui-manager.js          builds the panel, size-scan UI state
+        modal-ui.js                 overlay container and trigger button
+        inline-ui.js                in-place rendering
+        link-list-manager.js        link extraction and file rows
+        selection-manager.js        select all, skip, undo, reset
+        download-manager.js         per-file and bulk download, retry
+        size-compute-manager.js     size scan start, poll, cancel
+        storage-manager.js          page state, pause state, clearing
+        original-links-modal.js     original link overlay
+        feedback-manager.js         counter, progress, status, notifications
+        dom-helpers.js              hashing, filenames, timestamps, escaping
+        mutation-handler.js         re-init when the page changes
+        styles.css                  in-page stylesheet
+      popup/
+        popup.html
+        popup.css
+        popup.js
+      shared/
+        config.js                   constants, status enums, storage keys
+        utils.js
+        icons.js                    inline SVG sprite and icon() helper
+        theme.js                    light/dark manager
+        tokens.css                  design tokens and primitives
+      icons/
+        icon16.png
+        icon48.png
+        icon128.png
+
+Script order matters: `config.js`, `utils.js`, `icons.js` and `theme.js` load
+before any `content/` module, and `content-script.js` loads last.
+
+## Permissions
+
+- **storage** - selections, skips, sizes, pause state, preferences, history.
+- **downloads** - handing a URL to the browser downloads API.
+- **notifications** - status notifications.
+- **tabs** - opening the paused page from the popup, reloading after a mode change.
+- **host_permissions** - `paste.fitgirl-repacks.site`, `fuckingfast.co` and its
+  subdomains.
+
+## Troubleshooting
+
+### The panel does not appear
+
+- The page may not contain recognisable download links, or it loaded before the
+  extension did. Reload the page.
+- In modal mode, look for the **Open downloader** button next to the download
+  heading.
+
+### Downloads do not start
+
+- Check the browser allows automatic downloads for the site.
+- Confirm the delivery mode in the popup: **hand-off** relies on a download
+  manager hook intercepting the request, **API** uses the browser directly.
+
+### Resume banner is missing
+
+Pause state is per page and expires after one hour.
+
+### A row stays on Pending
+
+Nothing has been requested for that file yet. Click **Start download**, or
+**Download** on that row alone.
+
+### Sizes are not filled in
+
+Click **Calculate sizes**. It only probes files without a known size, so it will
+report "All files already have known sizes" once everything is resolved.
+
+## Development
+
+Requirements: Chrome or Edge 88+, a text editor, basic JavaScript knowledge.
+
+Reload loop:
+
+1. Edit the source files.
+
+2. Open `chrome://extensions/` and click the reload icon on the extension card.
+
+3. Reload the FitGirl page to re-run the content script.
+
+Debugging:
+
+- Content script: right-click the page, Inspect, Console.
+- Service worker: `chrome://extensions/` - Details - Inspect service worker.
+- Popup: right-click the toolbar icon, Inspect popup.
+
+Handy snippets:
+
+    // log from the content script
+    console.log('FitGirl Downloader:', message);
+
+    // dump everything the extension has stored
+    chrome.storage.local.get(null, (data) => console.log(data));
+
+    // reset stored state
+    chrome.storage.local.clear();
+
+### Adding an icon
+
+Add a symbol to the `SYMBOLS` map in `shared/icons.js`, then call
+`FitGirlIcons.icon('name')` (or the per-class `icon()` helper) from markup.
+The sprite is injected once per document.
+
+### Adding a status
+
+Add the value to `CONFIG.STATUS`, a class in the `tagClasses` map and a label in
+the `statusTexts` map in `download-manager.js`, plus a `.fg-tag-*` rule in
+`shared/tokens.css`.
+
+## Known limitations
+
+1. Only the domains listed in `manifest.json` can be accessed.
+2. The MV3 service worker can be suspended after inactivity; it restarts on the
+   next message.
+3. Pause state expires after one hour.
+4. Chrome and Edge only; Firefox needs a separate MV2 build.
+
+## Credits
+
+- FitGirl Repacks, for the repacks themselves.
+- The Chrome extension API documentation.
+
+## Related projects
+
+- Main repository: [fitgirl-downloader-suite](../)
+- Browser automation: [../browser-automation/](../browser-automation/)
+- Tampermonkey script: [../tampermonkey-script/](../tampermonkey-script/)
+- Python downloader: [../python-downloader/](../python-downloader/)
 
 ---
 
-**Note**: This extension is for personal use and automation convenience. Please respect website terms of service and rate limits.
+This extension is for personal automation convenience. Respect the terms of
+service and rate limits of the sites you use it on.
