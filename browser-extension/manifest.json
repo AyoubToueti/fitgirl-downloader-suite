@@ -1,12 +1,13 @@
 {
   "manifest_version": 3,
   "name": "FitGirl Downloader",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "minimum_chrome_version": "121",
   "browser_specific_settings": {
     "gecko": {
       "id": "fitgirl-downloader@fitgirl-downloader-suite.local",
-      "strict_min_version": "121.0"
+      "strict_min_version": "121.0",
+      "update_url": "https://raw.githubusercontent.com/AyoubToueti/fitgirl-downloader-suite/main/docs/updates.json"
     }
   },
   "description": "Automatically detect and download FitGirl fuckingfast.co links with pause/resume, file selection, and retry capabilities",

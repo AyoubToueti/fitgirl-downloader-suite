@@ -2,6 +2,37 @@
 
 All notable changes to the FitGirl FDM Downloader Extension will be documented in this file.
 
+## [0.4.0] - 2026-11-01
+
+### Added
+
+- **Firefox auto-updates.** The manifest now declares
+  `browser_specific_settings.gecko.update_url`, pointing at
+  `docs/updates.json` in this repository. Firefox checks that file roughly once
+  a day and installs any higher version listed there.
+- Release workflow signs the extension with `web-ext sign --channel unlisted`
+  and attaches a Mozilla-signed `.xpi` to every release, alongside the zip.
+- Release workflow rewrites `docs/updates.json` after publishing, adding an
+  entry for the new version with the asset URL and the manifest's
+  `strict_min_version`.
+
+### Changed
+
+- **Firefox installation method.** End users must install the signed `.xpi` from
+  the releases page. A temporary add-on loaded through `about:debugging` can
+  never receive updates and still disappears when Firefox restarts, so that path
+  is now documented for developers only.
+- Chrome and Edge are unaffected by the update mechanism; they ignore
+  `browser_specific_settings` entirely.
+
+### Notes
+
+- `update_url` is written into the installed add-on and **cannot be changed
+  later** for existing users. Moving or removing `docs/updates.json` would
+  silently stop updates for everyone who already installed.
+- Signing requires `AMO_API_KEY` and `AMO_API_SECRET` repository secrets. The
+  release job fails with an explanatory message when either is missing.
+
 ## [0.3.0] - 2026-11-01
 
 ### Added

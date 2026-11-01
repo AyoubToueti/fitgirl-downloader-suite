@@ -121,18 +121,20 @@ The warning is cosmetic. A hard error instead means Chrome is older than 121.
 
 ### Firefox
 
-Firefox 121 or newer. The same folder works, with no separate build.
+Firefox 121 or newer.
 
-1. Open `about:debugging#/runtime/this-firefox`.
+**End users:** download `fitgirl-downloader-<version>.xpi` from the
+[releases page](../releases) and open it. Firefox installs the signed build and
+then keeps it up to date on its own, checking `docs/updates.json` roughly once a
+day (or immediately from **about:addons** → gear icon → **Check for updates**).
 
-2. Click **Load Temporary Add-on**.
+This is the only Firefox install that updates. A temporary add-on loaded through
+`about:debugging` never checks for updates and disappears when Firefox restarts.
 
-3. Select `manifest.json` inside the `browser-extension` folder.
-
-4. Open a FitGirl Repacks page to verify.
-
-A temporary add-on is removed when Firefox restarts; reload it the same way
-after a restart or after pulling changes.
+**Developers:** to run unreleased source, open
+`about:debugging#/runtime/this-firefox`, click **Load Temporary Add-on**, and
+select `manifest.json` inside the `browser-extension` folder. Reload it the same
+way after every change. Do not use this path to test update behaviour.
 
 The manifest declares both `background.service_worker` and
 `background.scripts`. Chrome uses the service worker, Firefox uses the event

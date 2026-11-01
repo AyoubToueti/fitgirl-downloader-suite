@@ -28,22 +28,40 @@ no package manager; the `browser-extension` folder is the extension.
 
 ## Firefox
 
-Firefox loads the same folder as a temporary add-on. A temporary add-on is
-removed when Firefox closes, so this is a development install rather than a
-permanent one.
+There are two ways to run this in Firefox. Only the first updates itself.
 
-1. Open the debugging page.
+### Signed build (recommended, auto-updates)
 
-    about:debugging#/runtime/this-firefox
+1. Open the repository's **Releases** page.
+
+2. Download `fitgirl-downloader-<version>.xpi` from the newest release.
+
+3. Open the downloaded file. Firefox shows an install prompt; accept it.
+
+4. Open a FitGirl Repacks page to verify.
+
+Firefox checks for a newer version about once a day and applies it
+automatically. To force a check: **about:addons** → gear icon →
+**Check for updates**.
+
+If Firefox downloads the `.xpi` instead of installing it, right-click the file
+and choose **Open With Firefox**. The server sends
+`application/octet-stream`, which Firefox treats as a plain download until you
+open it.
+
+### Temporary add-on (development only, never updates)
+
+Use this only when testing unreleased source. A temporary add-on disappears when
+Firefox restarts and **never receives updates**.
+
+1. Open `about:debugging#/runtime/this-firefox`.
 
 2. Click **Load Temporary Add-on**.
 
-3. In the file picker, select `manifest.json` inside the `browser-extension`
-   folder. Selecting the manifest is what matters; the rest of the folder loads
-   with it.
+3. Select `manifest.json` inside the `browser-extension` folder.
 
-4. The add-on appears under **Temporary Extensions**. Open a FitGirl Repacks
-   page to verify.
+4. The add-on appears under **Temporary Extensions**. Open a FitGirl Repacks page
+   to verify.
 
 After restarting Firefox, repeat steps 1 to 3.
 

@@ -84,6 +84,47 @@ jobs:
           echo "--- archive contents (first 20) ---"
           unzip -l "$zip_name" | head -20
 
+      - name: Set up Node for web-ext
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Check AMO credentials
+        run: |
+          if [ -z "${{ secrets.AMO_API_KEY }}" ] || [ -z "${{ secrets.AMO_API_SECRET }}" ]; then
+            echo "::error::AMO_API_KEY and AMO_API_SECRET repository secrets are required."
+            echo "::error::Create a key at https://addons.mozilla.org/developers/addon/api/key/"
+            echo "::error::then add both values under Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+
+      - name: Sign XPI for self-distribution
+        env:
+          WEB_EXT_API_KEY: ${{ secrets.AMO_API_KEY }}
+          WEB_EXT_API_SECRET: ${{ secrets.AMO_API_SECRET }}
+        run: |
+          npm install -g web-ext@10
+          # No --approval-timeout: the default waits for the signed file.
+          # Setting it to 0 disables the wait, so no .xpi is produced.
+          web-ext sign \
+            --source-dir browser-extension \
+            --artifacts-dir signed \
+            --channel unlisted
+
+          echo "--- signed artifacts ---"
+          ls -lh signed/
+
+          # web-ext names the file <name>-<version>.xpi using the manifest name,
+          # which contains spaces. Normalise to a stable asset name.
+          version="${{ steps.version.outputs.value }}"
+          src=$(find signed -name '*.xpi' -type f | head -1)
+          if [ -z "$src" ]; then
+            echo "::error::web-ext produced no .xpi"
+            exit 1
+          fi
+          mv "$src" "fitgirl-downloader-${version}.xpi"
+          ls -lh "fitgirl-downloader-${version}.xpi"
+
       - name: Create release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -103,18 +144,79 @@ jobs:
 
           gh release create "${GITHUB_REF_NAME}" \
             "$zip_name" \
+            "fitgirl-downloader-${version}.xpi" \
             --title "Browser extension ${version}" \
             --notes-file "$RUNNER_TEMP/release-notes.md" \
             $prerelease_flag
+
+      - name: Update Firefox update manifest
+        run: |
+          version="${{ steps.version.outputs.value }}"
+          xpi_name="fitgirl-downloader-${version}.xpi"
+          asset_url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/${xpi_name}"
+          min_version=$(node -p "require('./browser-extension/manifest.json').browser_specific_settings.gecko.strict_min_version")
+          export ASSET_URL="$asset_url"
+          export MIN_VERSION="$min_version"
+          export VERSION="$version"
+
+          node -e '
+            const fs = require("fs");
+            const file = "docs/updates.json";
+            const data = JSON.parse(fs.readFileSync(file, "utf8"));
+            const id = "fitgirl-downloader@fitgirl-downloader-suite.local";
+            const version = process.env.VERSION;
+            const link = process.env.ASSET_URL;
+            const minVersion = process.env.MIN_VERSION;
+
+            const entry = data.addons[id] || (data.addons[id] = { updates: [] });
+            entry.updates = entry.updates.filter(u => u.version !== version);
+            entry.updates.push({
+              version,
+              update_link: link,
+              applications: { gecko: { strict_min_version: minVersion } }
+            });
+
+            // Newest first, so readers see the current version at the top.
+            entry.updates.sort((a, b) => {
+              const pa = a.version.split(".").map(Number);
+              const pb = b.version.split(".").map(Number);
+              for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+                const d = (pb[i] || 0) - (pa[i] || 0);
+                if (d) return d;
+              }
+              return 0;
+            });
+
+            fs.writeFileSync(file, JSON.stringify(data, null, 2) + "\n");
+          '
+
+      - name: Commit update manifest
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/updates.json
+
+          # A tag push checks out a detached HEAD, so name the branch explicitly.
+          # --quiet makes a no-op exit 0; the guard below skips the commit then,
+          # which matters when the workflow is re-run for the same version.
+          if git diff --cached --quiet; then
+            echo "updates.json already advertises ${GITHUB_REF_NAME}; nothing to commit."
+          else
+            git commit -m "chore(extension): advertise ${GITHUB_REF_NAME} to Firefox [skip ci]"
+            git push origin HEAD:main
+          fi
 
       - name: Release summary
         run: |
           {
             echo "## Released extension-v${{ steps.version.outputs.value }}"
             echo
-            echo "Asset: \`browser-extension-${{ steps.version.outputs.value }}.zip\`"
+            echo "Assets:"
+            echo "- \`browser-extension-${{ steps.version.outputs.value }}.zip\`"
+            echo "- \`fitgirl-downloader-${{ steps.version.outputs.value }}.xpi\` (Mozilla-signed)"
             echo
-            echo "Unsigned build. Load it by unpacking: Chrome/Edge **Load unpacked**"
-            echo "on the unzipped folder, Firefox **Load Temporary Add-on** on its"
-            echo "\`manifest.json\`. Signing is required only for store distribution."
+            echo "Chrome/Edge: download the zip, unzip, then **Load unpacked** on the folder."
+            echo
+            echo "Firefox: download the .xpi and open it. This build auto-updates from"
+            echo "\`docs/updates.json\`; temporary add-ons loaded via about:debugging do not."
           } >> "$GITHUB_STEP_SUMMARY"
