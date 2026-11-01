@@ -1,7 +1,17 @@
 {
   "addons": {
     "fitgirl-downloader@fitgirl-downloader-suite.local": {
-      "updates": []
+      "updates": [
+        {
+          "version": "0.4.1",
+          "update_link": "https://github.com/AyoubToueti/fitgirl-downloader-suite/releases/download/extension-v0.4.1/fitgirl-downloader-0.4.1.xpi",
+          "applications": {
+            "gecko": {
+              "strict_min_version": "121.0"
+            }
+          }
+        }
+      ]
     }
   }
 }
