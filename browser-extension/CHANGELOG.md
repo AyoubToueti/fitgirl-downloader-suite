@@ -2,6 +2,46 @@
 
 All notable changes to the FitGirl FDM Downloader Extension will be documented in this file.
 
+## [0.3.0] - 2026-11-01
+
+### Added
+
+- **Firefox 121+ support.** The same folder loads in Chrome, Edge and Firefox
+  with no build step. `manifest.json` declares both `background.service_worker`
+  and `background.scripts`; Chrome runs the service worker, Firefox runs an
+  event page. This is why both engines now require version 121: earlier builds
+  reject the combined form.
+- `browser_specific_settings.gecko` with an add-on id and
+  `strict_min_version: "121.0"`, plus `minimum_chrome_version: "121"`.
+
+### Changed
+
+- **Every extension API call is Promise-based.** The `browser` namespace used on
+  Firefox silently ignores the trailing callbacks the code was passing, so 13
+  call sites were no-ops there. Converted in `background.js` (get/set storage,
+  update stats, badge restore), `popup.js` (stats, pause state, resume, retry
+  all, clear logs, active-tab reload) and `theme.js` (saved theme).
+- **Background bootstrap.** `importScripts` is now behind a `typeof` guard and
+  the trimmed fallback `CONFIG` is gone. The Firefox `scripts` array loads
+  `shared/config.js` first; a missing config now throws instead of silently
+  degrading to a partial constant set.
+- Removed the unused `getStorage`, `setStorage`, `sendMessage` and
+  `showNotification` wrappers from `shared/utils.js`, along with the
+  `browserAPI` binding they needed.
+
+### Fixed
+
+- **Download completion could be missed.** The `downloads.onChanged` listener
+  attached after `downloads.download()` resolved, which is late enough on
+  Firefox for a small file to finish first. The watcher now subscribes before
+  reading a `downloads.search` snapshot and reconciles the two, detaches
+  exactly once from every path, re-arms a bounded idle timer so a suspended
+  event page cannot leak the listener, and logs interrupted downloads using the
+  delta's error code.
+- Popup statistics, the theme preference, Clear logs, Retry all and the
+  pause-state banner now work on Firefox; all of them depended on a callback
+  that never fired.
+
 ## [0.2.0] - 2026-10-31
 
 ### 🚀 New fuckingfast.co interface support

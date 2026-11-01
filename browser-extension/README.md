@@ -108,14 +108,36 @@ directly. On a link page, **Extract & download** resolves the real URL first.
 
 4. Open a FitGirl Repacks page with download links to verify.
 
-There is no build step: the extension runs directly from source.
+There is no build step: the extension runs directly from source, and the same
+folder loads in both engines.
 
-Icons live in `icons/` as `icon16.png`, `icon48.png` and `icon128.png`. See
-`icons/README.md` for sources.
+Icons live in `icons/` as `icon16.png`, `icon48.png` and `icon128.png`.
+
+Chrome may show the warning `'background.scripts' requires manifest version of
+2 or lower`. It is expected and safe to ignore. The manifest declares both
+background forms so a single folder works in Chrome and Firefox; Chrome 121+
+ignores `scripts` and uses `service_worker`, while Firefox does the opposite.
+The warning is cosmetic. A hard error instead means Chrome is older than 121.
 
 ### Firefox
 
-Firefox needs a Manifest V2 build and is not supported yet.
+Firefox 121 or newer. The same folder works, with no separate build.
+
+1. Open `about:debugging#/runtime/this-firefox`.
+
+2. Click **Load Temporary Add-on**.
+
+3. Select `manifest.json` inside the `browser-extension` folder.
+
+4. Open a FitGirl Repacks page to verify.
+
+A temporary add-on is removed when Firefox restarts; reload it the same way
+after a restart or after pulling changes.
+
+The manifest declares both `background.service_worker` and
+`background.scripts`. Chrome uses the service worker, Firefox uses the event
+page. This is why the extension needs Chrome 121 or Firefox 121 as a minimum:
+older versions of either browser refuse the combined form.
 
 ## Usage
 
@@ -341,10 +363,14 @@ the `statusTexts` map in `download-manager.js`, plus a `.fg-tag-*` rule in
 ## Known limitations
 
 1. Only the domains listed in `manifest.json` can be accessed.
-2. The MV3 service worker can be suspended after inactivity; it restarts on the
-   next message.
+2. The background context is suspended after inactivity on both engines; it
+   restarts on the next message.
 3. Pause state expires after one hour.
-4. Chrome and Edge only; Firefox needs a separate MV2 build.
+4. Chrome 121+, Edge 121+ and Firefox 121+ only. Older versions reject the
+   combined `background` block.
+5. Firefox host permissions are granted at install from Firefox 127 onwards. On
+   older versions the content scripts still inject, but background requests to
+   fuckingfast.co may be refused.
 
 ## Credits
 

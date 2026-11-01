@@ -1,101 +1,128 @@
-# Quick Installation Guide
+# Installation
 
-## 🚀 Get Started in 5 Minutes
+Quick start for the FitGirl Downloader browser extension. For what the
+extension does, see `README.md`.
 
-### Step 1: Load Extension in Chrome/Edge
+Requirements: Chrome 121+, Edge 121+ or Firefox 121+. There is no build step and
+no package manager; the `browser-extension` folder is the extension.
 
-1. **Open Extension Management**
-   - Chrome: Navigate to `chrome://extensions/`
-   - Edge: Navigate to `edge://extensions/`
+## Chrome and Edge
 
-2. **Enable Developer Mode**
-   - Toggle the switch in the top-right corner
+1. Open the extensions page.
 
-3. **Load Unpacked Extension**
-   - Click "Load unpacked" button
-   - Navigate to and select the `browser-extension` folder
-   - Click "Select Folder"
+    chrome://extensions
 
-4. **Verify Installation**
-   - Extension card appears with "FitGirl FDM Downloader"
-   - Purple icon appears in browser toolbar
-   - Status shows "Enabled"
+   In Edge, `edge://extensions` works too.
 
-### Step 2: Test the Extension
+2. Turn on **Developer mode** with the toggle in the top right.
 
-1. **Visit a Test Page**
-   - Go to https://fitgirl-repacks.site/
-   - Open any game page (e.g., recent repacks)
-   - Scroll to the download links section
+3. Click **Load unpacked** and select the `browser-extension` folder, the one
+   that contains `manifest.json`.
 
-2. **Look for the UI**
-   - Purple download interface should appear automatically
-   - May take 1-3 seconds to initialize
-   - If not visible, refresh the page (F5)
+4. The extension appears in the list. Pin it from the toolbar puzzle-piece menu
+   so the popup is one click away.
 
-3. **Test Basic Features**
-   - Check/uncheck file selection boxes
-   - Click "Select All" / "Deselect All"
-   - Try skipping a file (should turn gray)
-   - Click "🚀 Start Download" to begin
+5. Open a FitGirl Repacks page that lists fuckingfast.co links. In the default
+   modal mode, an **Open downloader** button appears next to the page's download
+   heading.
 
-4. **Check Popup**
-   - Click extension icon in toolbar
-   - View statistics dashboard
-   - Verify all sections are visible
+## Firefox
 
-## 🐛 Common Issues
+Firefox loads the same folder as a temporary add-on. A temporary add-on is
+removed when Firefox closes, so this is a development install rather than a
+permanent one.
 
-### Issue: "Manifest file is missing or unreadable"
-**Solution**: Make sure you're selecting the `browser-extension` folder itself, not a parent folder
+1. Open the debugging page.
 
-### Issue: "Icons missing" warning
-**Solution**: Add the required icon files to `icons/` folder (see Step 1)
+    about:debugging#/runtime/this-firefox
 
-### Issue: Extension loads but UI doesn't appear
-**Solution**: 
-1. Refresh the FitGirl page (F5)
-2. Check browser console (F12) for errors
-3. Verify you're on a page with download links
+2. Click **Load Temporary Add-on**.
 
-### Issue: Downloads don't start
-**Solution**: 
-1. Check browser download settings
-2. Allow automatic downloads for the extension
-3. Set FDM as default download manager (if using FDM)
+3. In the file picker, select `manifest.json` inside the `browser-extension`
+   folder. Selecting the manifest is what matters; the rest of the folder loads
+   with it.
 
-### Issue: "Service worker inactive"
-**Solution**: Normal behavior - it will restart automatically when needed
+4. The add-on appears under **Temporary Extensions**. Open a FitGirl Repacks
+   page to verify.
 
-## 🔧 Next Steps
+After restarting Firefox, repeat steps 1 to 3.
 
-Once installed and tested:
+If you see "This add-on could not be installed because it appears to be
+corrupt", the folder is missing a file listed in `manifest.json`. Check that
+`shared/config.js`, `shared/icons.js`, `shared/theme.js` and the whole `content/`
+folder are present.
 
-1. **Configure Settings** (optional)
-   - Edit `shared/config.js` for timing adjustments
-   - Edit `content/styles.css` for color customization
+## Verifying the install
 
-2. **Set FDM as Default** (for FDM integration)
-   - FDM Settings → Browser Integration
-   - Enable browser monitoring
-   - Set as default for `.rar`, `.zip`, etc.
+On a FitGirl Repacks page with download links:
 
-3. **Pin Extension** (convenience)
-   - Click puzzle icon in Chrome toolbar
-   - Click pin 📌 next to FitGirl Downloader
+1. The panel opens from the heading button in modal mode, or is already on the
+   page in inline mode.
 
-4. **Read Full Documentation**
-   - See `README.md` for complete feature guide
-   - Learn about pause/resume, retry system, etc.
+2. File rows are listed with a **Pending** status.
 
-## 📞 Need Help?
+3. **Calculate sizes** fills the size column.
 
-- Check console logs: Right-click page → Inspect → Console
-- Background script logs: `chrome://extensions/` → Details → Inspect service worker
-- Popup logs: Right-click extension icon → Inspect popup
-- **Issues**: [GitHub Issues](https://github.com/AyoubToueti/fitgirl-game-downloader/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/AyoubToueti/fitgirl-game-downloader/discussions)
+4. **Start download** runs through the selected files.
 
-## 🎉 Ready to Use!
+5. The popup shows totals and any failed files.
 
-You're all set! Navigate to any FitGirl Repacks game page and enjoy automated downloading with pause/resume, file selection, and retry capabilities.
+## Reloading after changes
+
+Chrome and Edge:
+
+1. Open `chrome://extensions`.
+
+2. Click the reload icon on the extension card.
+
+3. Reload the FitGirl page so the content script runs again.
+
+Firefox:
+
+1. Open `about:debugging#/runtime/this-firefox`.
+
+2. Click **Reload** next to the temporary add-on.
+
+3. Reload the FitGirl page.
+
+A theme or rendering-mode change made in the popup does not need this; the
+extension applies it immediately, and reloads the active tab when the rendering
+mode changes.
+
+## Uninstalling
+
+Chrome and Edge: `chrome://extensions`, then **Remove** on the extension card.
+
+Firefox: `about:debugging#/runtime/this-firefox`, then **Remove** next to the
+temporary add-on. Closing Firefox also removes it.
+
+Removing the extension leaves nothing behind except its extension storage, which
+the browser clears with the extension.
+
+## Troubleshooting
+
+### The button or panel does not appear
+
+The page may have no recognisable fuckingfast.co links, or the content script
+ran before the links were in the DOM. Reload the page.
+
+### Nothing downloads
+
+Check the delivery mode in the popup. **Hand-off** relies on a download manager
+hook intercepting the request; **Browser downloads API** uses the browser
+directly. Try the other mode to isolate the problem.
+
+### Statistics stay at zero
+
+The popup reads its counters from extension storage through the background
+script. If the background failed to start, every counter stays zero and the
+console shows a startup error. In Chrome, inspect the service worker from
+`chrome://extensions`; in Firefox, open the add-on's console from
+`about:debugging`.
+
+### Firefox blocks background requests
+
+Host permissions are granted at install from Firefox 127. On older versions the
+content script still runs but background requests to fuckingfast.co can be
+refused, which shows up as failed URL extraction or a size scan that never
+completes. Update Firefox.
