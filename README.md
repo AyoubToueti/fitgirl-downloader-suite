@@ -7,7 +7,7 @@ Choose the approach that fits your needs:
 | Project | Tech Stack | Best For |
 |--------|-----------|--------|
 | **`browser-extension`** | Chrome Extension (MV3) | Users who want **one-click native browser integration** with pause/resume, file selection, and retry |
-| **`Tampermonkey-userscript`** | Userscript (JS) | Users who prefer **userscripts** and already have Tampermonkey installed |
+| **`tampermonkey-script`** | Userscript (JS) | Users who prefer **userscripts** and already have Tampermonkey installed |
 | **`browser-automation`** | Node.js + Puppeteer | Users who want **realistic browser interaction** and automation scripts |
 | **`python-downloader`** | Python (stdlib only) | Users who want **speed, simplicity, and minimal resource usage** — no browser needed, works with any download manager |
 
@@ -44,46 +44,7 @@ A **native browser extension** (Chrome/Edge) with advanced features:
 
 ---
 
-### 2. [`Tampermonkey-userscript`](./Tampermonkey-userscript/)
-A **Tampermonkey/Greasemonkey userscript** for browser automation:
-- Automatically detects FitGirl download links
-- Adds bulk download button to pages
-- Extracts real download URLs
-- Sends to FDM or browser downloader
-- Tracks completed and failed downloads
-- Control panel with statistics
-
-**Use this if you:**
-- Already have **Tampermonkey installed**
-- Prefer **userscripts** over extensions
-- Want **quick script edits** without reload
-- Need **cross-browser compatibility** (Firefox, Chrome, Edge, etc.)
-
-[View Userscript](./Tampermonkey-userscript/)
-
----
-
-### 3. [`browser-automation`](./browser-automation/)
-A **browser automation tool** using **Puppeteer**:
-- Launches your real or temp browser profile
-- **Clicks the "DOWNLOAD" button** like a human
-- Lets the browser handle downloads natively
-- Processes paste files with multiple URLs
-- Cleans up temp profiles automatically
-- Supports Edge, Chrome, Chromium browsers
-
-**Use this if you:**
-- Prefer **visual confirmation** (browser window opens)
-- Want **maximum compatibility** with site logic
-- Need to use your **real browser profile** (cookies, settings)
-- Have a **paste file** with many links to process
-- Want to automate from command line/scripts
-
-[View Automation README](./browser-automation/README.md)
-
----
-
-### 4. [`python-downloader`](./python-downloader/)
+### 2. [`python-downloader`](./python-downloader/)
 A **standalone terminal app** for headless operation:
 - Resolves downloads via a direct `POST /f/<id>/go` (no page fetch, no captcha)
 - Works with **Python standard library only** — zero third-party dependencies
@@ -104,6 +65,47 @@ A **standalone terminal app** for headless operation:
 
 ---
 
+### 3. [`tampermonkey-script`](./tampermonkey-script/)
+A **Tampermonkey/Greasemonkey userscript** with the same interface as the extension:
+- Detects FitGirl download links and lists every file
+- Per-file selection, skip and undo
+- Size scan with package totals
+- Retries on failed and successful rows
+- Clear page state
+- Light and dark themes
+- Resolves links through the current `/go` HTMX endpoint, then hands the
+  direct URL to the browser so a download manager can intercept it
+
+**Use this if you:**
+- Already have **Tampermonkey installed**
+- Prefer **userscripts** over extensions
+- Want the extension's panel without installing an extension
+- Need **cross-browser compatibility** (Firefox, Chrome, Edge, etc.)
+
+[View Userscript](./tampermonkey-script/)
+
+---
+
+### 4. [`browser-automation`](./browser-automation/) (DEPRECATED!!)
+A **browser automation tool** using **Puppeteer**:
+- Launches your real or temp browser profile
+- **Clicks the "DOWNLOAD" button** like a human
+- Lets the browser handle downloads natively
+- Processes paste files with multiple URLs
+- Cleans up temp profiles automatically
+- Supports Edge, Chrome, Chromium browsers
+
+**Use this if you:**
+- Prefer **visual confirmation** (browser window opens)
+- Want **maximum compatibility** with site logic
+- Need to use your **real browser profile** (cookies, settings)
+- Have a **paste file** with many links to process
+- Want to automate from command line/scripts
+
+[View Automation README](./browser-automation/README.md)
+
+---
+
 ## Quick Start
 
 ### Browser Extension (Recommended for Most Users)
@@ -120,9 +122,13 @@ cd fitgirl-game-downloader/browser-extension
 
 ### Tampermonkey Script
 1. Install [Tampermonkey](https://www.tampermonkey.net/) browser extension
-2. Open `Tampermonkey-userscript/fitgirl_Tampermonkey_downloader.js`
-3. Copy and paste into new Tampermonkey script
+2. Open `tampermonkey-script/fitgirl_Tampermonkey_downloader.js`
+3. Copy and paste into a new Tampermonkey script
 4. Save and visit any FitGirl page
+
+The userscript inlines its CSS and icon sprite from `browser-extension/`, so
+the two UIs cannot drift. After changing the extension styles run
+`node scripts/build-userscript.mjs` to regenerate that block.
 
 ### Browser Automation
 ```bash
